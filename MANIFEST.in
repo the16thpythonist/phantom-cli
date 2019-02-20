@@ -1,0 +1,2 @@
+include phantomcli/scripts/*
+include phantomcli/tests/*
