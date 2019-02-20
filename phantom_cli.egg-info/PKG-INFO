@@ -1,0 +1,11 @@
+Metadata-Version: 1.2
+Name: phantom-cli
+Version: 0.0.0.1
+Summary: command line tools to interact with the phantom camera
+Home-page: UNKNOWN
+Author: Jonas Teufel
+Author-email: jonseb1998@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: ~=3.5

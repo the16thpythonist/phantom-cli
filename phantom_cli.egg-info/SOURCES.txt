@@ -1,0 +1,10 @@
+MANIFEST.in
+README.md
+setup.py
+phantom-cli/__init__.py
+phantom_cli.egg-info/PKG-INFO
+phantom_cli.egg-info/SOURCES.txt
+phantom_cli.egg-info/dependency_links.txt
+phantom_cli.egg-info/not-zip-safe
+phantom_cli.egg-info/requires.txt
+phantom_cli.egg-info/top_level.txt
