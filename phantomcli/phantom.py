@@ -93,6 +93,10 @@ class PhantomCamera:
         'info.rto_channels':        'Number of RTO channels'
     }
 
+    CAPABILITIES_INFO_DEFAULT = {
+        'info.features':            ['image', 'video']
+    }
+
     # ###############################
     # CAMERA STATUS MONITORING FIELDS
     # ###############################
@@ -138,7 +142,8 @@ class PhantomCamera:
 
     DEFAULTS = {
         **SENSOR_INFO_DEFAULT,
-        **IDENTIFICATION_INFO_DEFAULT
+        **IDENTIFICATION_INFO_DEFAULT,
+        **CAPABILITIES_INFO_DEFAULT
     }
 
     # ###########

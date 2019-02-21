@@ -32,27 +32,17 @@ logging_config.default_factory = lambda: logging.DEBUG
 @click.command('connection')
 @click.option('--log', '-l', default='DEBUG')
 @click.argument('ip')
-def command(ip, log):
+@click.argument('key')
+def command(key, ip, log):
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging_config[log])
 
     phantom_socket = PhantomSocket(ip)
-    click.echo('CREATED A NEW PHANTOM SOCKET')
-    result = phantom_socket.ping()
-    if result:
-        click.echo('TARGET IP IS PINGABLE!')
-    else:
-        click.echo('TARGET IP IS UNREACHABLE...')
-        return 0
+    phantom_socket.connect()
+    click.echo('CONNECTED TO THE PHANTOM CAMERA')
 
-    try:
-        phantom_socket.connect()
-        click.echo('CONNECTED TO PHANTOM')
-    except ModuleNotFoundError as e:
-        click.echo('CONNECTION TO PHANTOM FAILES WITH ERROR:\n"{}"'.format(str(e)))
-
-    name = phantom_socket.get('info.name')
-    click.echo('PHANTOM IDENTIFIED WITH NAME "{}"'.format(name[0]))
-
+    result = phantom_socket.get(key)
+    click.echo('PHANTOM RETURNED:\n\n{}'.format('\n'.join(result)))
+    phantom_socket.disconnect()
 
 if __name__ == '__main__':
     command()

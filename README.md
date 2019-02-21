@@ -30,7 +30,7 @@ sudo pip install phantom-cli
 When connected to the phantom camera via an ethernet cable, execute the *phtest* command, using the IP address of your 
 specific phantom camera model:
 ```bash
-phtest <IP ADDRESS>
+ph-test <IP ADDRESS>
 ```
 
 #### Starting the mock server
@@ -38,9 +38,17 @@ phtest <IP ADDRESS>
 To be able to test other services, that are supposed to make a connection with the phantom camera a mock server on the 
 localhost address 127.0.0.1 and the phantom control interface port 7115 can be started by executing the script 
 ```bash
-phmock
+ph-mock
 ```
 It simulates the behaviour of a real phantom camera
+
+#### Reading phantom attributes
+
+To read attributes of the phantom camera use the phget script
+```bash
+ph-get <IP ADDRESS> <ATTRIBUTE>
+```
+Replace ATTRIBUTE with the name of the attribute/structure to be read from the phantom
 
 ## Authors
 
@@ -66,3 +74,6 @@ the mock server has been rewritten with the "socketserver" module
 - Implemented "get" handling for the mock server 
 - script "phmock", which simply starts the mock server on 127.0.0.1 and the phantom port
 - Implemented "get" functionality for PhantomSocket.
+
+### 0.0.0.6 - 21.02.2019
+- script "phget" to issue single get commands to the phantom camera

@@ -10,8 +10,6 @@ from collections import defaultdict
 import click
 
 # package imports
-from phantomcli.network import PhantomSocket
-from phantomcli.network import logger
 from phantomcli.network import PhantomMockServer
 
 
@@ -39,8 +37,12 @@ def command(log):
     mock_server.start()
     click.echo('MOCK SERVER STARTED!')
 
-    while True:
-        time.sleep(0.1)
+    try:
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        mock_server.stop()
+        click.echo('\nMOCK SERVER STOPPED!')
 
 
 if __name__ == '__main__':

@@ -178,6 +178,9 @@ class PhantomSocket:
         except socket.timeout:
             self.logger.error('Connecting to Phantom at %s failed!', self.ip)
             raise ModuleNotFoundError('There is no socket at {}!'.format(self.ip))
+        except ConnectionRefusedError:
+            self.logger.error('Connection to Phantom at %s failed!', self.ip)
+            raise ModuleNotFoundError('Connection refused at {}'.format(self.ip))
 
     def disconnect(self):
         """
@@ -325,7 +328,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         # The connection with the phantom camera is based on one ongoing socket connection. That is why we are using a
         # infinite while loop here
-        while True:
+        while self.server.running:
             data = self.request.recv(1024).strip()
             request = data.decode('utf-8')
             if request and request[0] == '':
@@ -471,6 +474,7 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         self.logger.debug('Created MockServer bound to IP %s and PORT %s', self.ip, self.port)
 
         self.thread = threading.Thread(target=self.serve_forever)
+        self.running = None
 
     def start(self):
         """
@@ -482,9 +486,33 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
 
         :return:
         """
+        # Setting this boolean attribute will make the handlers run
+        self.running = True
+
+        # Actually starting the Thread, which runs the "serve_forever" method of the TCPServer
         self.thread.daemon = True
         self.thread.start()
         self.logger.debug('main thread has started')
+
+    def stop(self):
+        """
+        Stops the server
+
+        CHANGELOG
+
+        Added 21.02.2019
+
+        :return:
+        """
+        # Setting the running boolean value to False. This will stop the handler server
+        self.running = False
+
+        # Shutting down the actual sockets in the server
+        self.shutdown()
+        self.server_close()
+
+        # Ensuring, that the Thread terminates
+        self.thread.join()
 
 
 
