@@ -31,23 +31,16 @@ logging_config.default_factory = lambda: logging.DEBUG
 
 @click.command('connection')
 @click.option('--log', '-l', default='DEBUG')
-@click.argument('ip')
-def command(ip, log):
+def command(log):
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging_config[log])
 
-    phantom_socket = PhantomSocket(ip)
-    click.echo('CREATED A NEW PHANTOM SOCKET')
-    result = phantom_socket.ping()
-    if result:
-        click.echo('TARGET IP IS PINGABLE!')
-    else:
-        click.echo('TARGET IP IS UNREACHABLE...')
+    # Simply starting a mock server here and waiting for any requests to come in
+    mock_server = PhantomMockServer()
+    mock_server.start()
+    click.echo('MOCK SERVER STARTED!')
 
-    phantom_socket.connect()
-    click.echo('CONNECTED TO PHANTOM')
-
-    name = phantom_socket.get('info.name')
-    click.echo('PHANTOM IDENTIFIED WITH NAME "{}"'.format(name[0]))
+    while True:
+        time.sleep(0.1)
 
 
 if __name__ == '__main__':

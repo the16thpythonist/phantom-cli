@@ -33,6 +33,15 @@ specific phantom camera model:
 phtest <IP ADDRESS>
 ```
 
+#### Starting the mock server
+
+To be able to test other services, that are supposed to make a connection with the phantom camera a mock server on the 
+localhost address 127.0.0.1 and the phantom control interface port 7115 can be started by executing the script 
+```bash
+phmock
+```
+It simulates the behaviour of a real phantom camera
+
 ## Authors
 
 * **Jonas Teufel** - *Initial work* - [the16thpythonist](https://github.com/the16thpythonist)
@@ -45,7 +54,15 @@ This project is licensed under the MIT License
 
 ### 0.0.0.4 - Initial version
 - set up the project skeleton, including the build and setup scripts and the folder structure
-- class "PhantomSocket" as main wrapper for communicating with the phantom in the future
-- class "PhantomMockServer" tcp server, which simulates a phantom camera operating on 127.0.0.1::7115
+- class network.PhantomSocket as main wrapper for communicating with the phantom in the future
+- class network.PhantomMockServer tcp server, which simulates a phantom camera operating on 127.0.0.1::7115
 in the future
 - script "phtest", which will be used to test the connection to the phantom camera.
+
+### 0.0.0.5 - 21.02.2019
+- class phantom.PhantomCamera, which represents the phantom camera and all its attributes
+- class network.PhantomMockControlInterface used for the actual handling of the mock incoming requests, because 
+the mock server has been rewritten with the "socketserver" module
+- Implemented "get" handling for the mock server 
+- script "phmock", which simply starts the mock server on 127.0.0.1 and the phantom port
+- Implemented "get" functionality for PhantomSocket.
