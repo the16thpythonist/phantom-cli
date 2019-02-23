@@ -99,3 +99,6 @@ phantom data stream. Will receive a single image completely
 - Added the functionality to recieve images to the PhantomSocket
 - Added the functionality to respond to a img request to the mock. it will now send a sample jpg image from 
 the project folder.
+
+### 0.0.0.8 - 23.02.2019
+- Fixed a bug with the scripts not being included into the pypi package

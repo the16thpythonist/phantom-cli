@@ -2,15 +2,19 @@ from setuptools import setup
 
 setup(
     name='phantom-cli',
-    version='0.0.0.6',
+    version='0.0.0.8',
     description='command line tools to interact with the phantom camera',
     url='https://github.com/the16thpythonist/phantom-cli',
     author='Jonas Teufel',
     author_email='jonseb1998@gmail.com',
     license='MIT',
     packages=[
-        'phantomcli'
+        'phantomcli',
+        'phantomcli.scripts'
     ],
+    package_data={
+        'scripts': '*'
+    },
     install_requires=[
         'click',
         'demjson',
