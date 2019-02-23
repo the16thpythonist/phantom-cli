@@ -77,3 +77,16 @@ the mock server has been rewritten with the "socketserver" module
 
 ### 0.0.0.6 - 21.02.2019
 - script "phget" to issue single get commands to the phantom camera
+
+### 0.0.0.7 -23.02.2019
+- class image.PhantomImage represents images takes from the phantom camera and handles the conversion 
+between different formats, especially the transfer formats
+- module command: This module handles the parsing of the phantom protocols own system of parameters in 
+request and response messages 
+- class phantom.PhantomDataTransferServer a server that gets opened by the client, to which the phantom 
+can connect to as a client. This secondary channel will be used to transfer bulk data such as images.
+- class phantom.PhantomDataTransferHandler a thread that will be created to handle the connection to the 
+phantom data stream. Will receive a single image completely
+- Added the functionality to recieve images to the PhantomSocket
+- Added the functionality to respond to a img request to the mock. it will now send a sample jpg image from 
+the project folder.

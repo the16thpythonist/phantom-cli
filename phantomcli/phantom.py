@@ -1,3 +1,14 @@
+# standard library imports
+import os
+
+# third party imports
+
+# package imports
+from phantomcli.image import PhantomImage
+
+
+FOLDER_PATH = os.path.dirname(os.path.abspath(__file__))
+
 
 # ##############
 # THE BASE CLASS
@@ -146,6 +157,12 @@ class PhantomCamera:
         **CAPABILITIES_INFO_DEFAULT
     }
 
+    # ##################
+    # ACTUAL IMAGES DATA
+    # ##################
+
+    SAMPLE_IMAGE_PATH = os.path.join(FOLDER_PATH, 'sample.jpg')
+
     # ###########
     # THE METHODS
     # ###########
@@ -157,10 +174,27 @@ class PhantomCamera:
         """
         Returns the default value for that particular structure
 
+        CHANGELOG
+
+        Added 22.02.2019
+
         :param structure_name:
         :return:
         """
         return self.DEFAULTS[structure_name]
+
+    def grab_sample(self):
+        """
+        Returns a PhantomImage object for the sample image in the project folder
+
+        CHANGELOG
+
+        Added 23.02.2019
+
+        :return: PhantomImage
+        """
+        # Loading a new PhantomImage from the given sample JPEG image
+        phantom_image = PhantomImage.from_jpeg(self.SAMPLE_IMAGE_PATH)
 
     # ##############
     # STATIC METHODS

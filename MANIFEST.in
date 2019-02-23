@@ -1,2 +1,3 @@
 include phantomcli/scripts/*
 include phantomcli/tests/*
+include phantomcli/sample.jpg
