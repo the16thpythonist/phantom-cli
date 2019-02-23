@@ -16,14 +16,16 @@ setup(
         'demjson',
         'parsimonious',
         'imageio',
-        'numpy'
+        'numpy',
+        'matplotlib'
     ],
     entry_points={
         'console_scripts':
             [
                 'ph-test=phantomcli.scripts.phtest:command',
                 'ph-mock=phantomcli.scripts.phmock:command',
-                'ph-get=phantomcli.scripts.phget:command'
+                'ph-get=phantomcli.scripts.phget:command',
+                'ph-img=phantomcli.scripts.phimg:command'
             ]
     },
     python_requires='~=3.5',

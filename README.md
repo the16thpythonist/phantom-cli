@@ -50,6 +50,15 @@ ph-get <IP ADDRESS> <ATTRIBUTE>
 ```
 Replace ATTRIBUTE with the name of the attribute/structure to be read from the phantom
 
+#### Grabbing an image from the camera
+
+To grab a single image frame from the camera use the following command, replacing the YOUR OWN IP ADDRESS with the 
+ip address, the phantom told you to use.
+```bash
+ph-img <IP ADDRESS> -i <YOUR OWN IP ADDRESS>
+```
+If everything works correctly the result will be the image showing as a separate on the screen
+
 ## Authors
 
 * **Jonas Teufel** - *Initial work* - [the16thpythonist](https://github.com/the16thpythonist)

@@ -3,3 +3,4 @@ demjson
 parsimonious
 numpy
 imageio
+matplotlib
