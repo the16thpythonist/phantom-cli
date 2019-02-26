@@ -102,3 +102,7 @@ the project folder.
 
 ### 0.0.0.8 - 23.02.2019
 - Fixed a bug with the scripts not being included into the pypi package
+
+### 0.0.0.8 - 26.02.2019
+- Fixed some additional bugs, while working with the actual camera, all previous programming was based on 
+assumptions made from the used protocol

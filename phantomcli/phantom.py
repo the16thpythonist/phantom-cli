@@ -105,7 +105,7 @@ class PhantomCamera:
     }
 
     CAPABILITIES_INFO_DEFAULT = {
-        'info.features':            ['image', 'video']
+        'info.features':            ' bref atrig lowexp '
     }
 
     # ###############################
@@ -139,6 +139,26 @@ class PhantomCamera:
         'eth.xbroadcast':           'String Broadcast mask for 10G connection'
     }
 
+    # ###############################
+    # IMAGE CAPTURE PROCESS OF CAMERA
+    # ###############################
+
+    CAPTURE_PROCESS_DESCRIPTIONS = {
+        'defc.res':                 'The resolution of the image as a string',
+        'defc.rate':                'Frame rate in pictures per second',
+        'defc.exp':                 'Exposure time in nano seconds',
+        'defc.edrecp':              'EDR exposure time in nano seconds',
+        'defc.ptframes':            'Number of post trigger frames',
+        'defc.shoff':               'Shutter off',
+        'defc.ramp':                'Frame rate ramping specification string',
+        'defc.bcount':              'Number of frames per burst',
+    }
+
+    CAPTURE_PROCESS_DEFAULT = {
+        'defc.res':                 '1500 x 1000',
+        'defc.exp':                 10000000
+    }
+
     # ##############################
     # MERGING ALL THE DICTS INTO ONE
     # ##############################
@@ -149,12 +169,14 @@ class PhantomCamera:
         **IDENTIFICATION_INFO_DESCRIPTIONS,
         **STATUS_INFO_DESCRIPTIONS,
         **ETHERNET_DESCRIPTIONS,
+        **CAPTURE_PROCESS_DESCRIPTIONS
     }
 
     DEFAULTS = {
         **SENSOR_INFO_DEFAULT,
         **IDENTIFICATION_INFO_DEFAULT,
-        **CAPABILITIES_INFO_DEFAULT
+        **CAPABILITIES_INFO_DEFAULT,
+        **CAPTURE_PROCESS_DEFAULT
     }
 
     # ##################
@@ -181,7 +203,7 @@ class PhantomCamera:
         :param structure_name:
         :return:
         """
-        return self.DEFAULTS[structure_name]
+        return '%s : %s' % (structure_name, self.DEFAULTS[structure_name])
 
     def grab_sample(self):
         """
@@ -195,6 +217,7 @@ class PhantomCamera:
         """
         # Loading a new PhantomImage from the given sample JPEG image
         phantom_image = PhantomImage.from_jpeg(self.SAMPLE_IMAGE_PATH)
+        return phantom_image
 
     # ##############
     # STATIC METHODS

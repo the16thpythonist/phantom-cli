@@ -124,6 +124,7 @@ class PhantomSocket:
         # gives us the total number of pixels, only this way the data server knows how many bytes to receive until it
         # is supposed to return the result.
         response = self.receive_image_response()
+        self.logger.debug('The response dict: %s', response)
         resolution = response['res']
         self.data_server.size = self.image_byte_size(resolution, image_format='p16')
 
@@ -434,7 +435,7 @@ class PhantomSocket:
         :param message:
         :return:
         """
-        # TODO: MAYBE WE NEED TO ADD AN ESCAPE CHARACTER HERE AT THE END NEWLINE
+        message += '\r\n'
         result = self.socket.sendall(message.encode('utf-8'))
         self.logger.debug('Sending "%s" to %s with result %s', message, self.ip, result)
 
@@ -509,7 +510,7 @@ class PhantomSocket:
         :param response:
         :return:
         """
-        return response.replace('OK! ', '')
+        return response.replace('OK! ', '').replace('Ok!', '')
 
 
 class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
@@ -544,16 +545,17 @@ class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
         # contens of the buffer to the server, so that the PhantomSocket client can access it there
         buffer = b''
         while self.server.running:
-            data = self.request.recv(4096).strip()
+            data = self.request.recv(8192).strip()
             if data and data[0] == '' or len(data) == 0:
                 continue
 
             if len(buffer) != self.server.size:
                 buffer += data
-            if len(buffer) == self.server.size:
+                self.server.logger.debug(len(buffer))
+            if len(buffer) >= self.server.size - 100:
                 # Once the image has been received, the byte string is being passed to the server object by setting
                 # its 'image_bytes' attribute. The the main loop is being ended, thus ending the whole handler thread
-                self.server.image_bytes = buffer
+                self.server.image_bytes = buffer + ('\x00' * (self.server.size - len(buffer))).encode('utf-8')
                 self.server.logger.debug('Finished receiving image with %s bytes', len(self.server.image_bytes))
                 break
 
@@ -763,7 +765,9 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         self.send_img_response(phantom_image)
 
         # Here we send the actual image as bytes over the data socket connection
+        self.server.logger.debug('Sending image now')
         self.send_image(phantom_image)
+        self.server.logger.debug('finished sending image')
 
     def send_image(self, phantom_image):
         """
@@ -777,6 +781,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         :return:
         """
         image_bytes = phantom_image.p16()
+        self.server.logger.debug('Sending image with size %s bytes', len(image_bytes))
         self.data_client.sendall(image_bytes)
 
     def send_img_response(self, phantom_image, image_format=272):
@@ -850,6 +855,19 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         response_list = self.create_response_list(structure_value)
         self.send_get_response(response_list)
 
+    def handle_trig(self, data):
+        self.send_ok()
+
+    def handle_rec(self, data):
+        self.send_ok()
+
+    def handle_bye(self, data):
+        self.send_ok()
+
+    # #############################
+    # ADDITIONAL NETWORK OPERATIONS
+    # #############################
+
     def send_ok(self):
         """
         Sends the generic OK! message
@@ -861,10 +879,6 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         :return:
         """
         self.send('OK!')
-
-    # #############################
-    # ADDITIONAL NETWORK OPERATIONS
-    # #############################
 
     def create_data_client(self):
         """
