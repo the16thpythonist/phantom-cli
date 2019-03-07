@@ -10,6 +10,7 @@ Welcome to phantomcli's documentation!
    :maxdepth: 2
 
    setting-up
+   accessing-attributes
 
 
 
