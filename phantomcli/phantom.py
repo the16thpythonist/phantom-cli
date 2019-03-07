@@ -105,7 +105,9 @@ class PhantomCamera:
     }
 
     CAPABILITIES_INFO_DEFAULT = {
-        'info.features':            ' bref atrig lowexp '
+        'info.features':            ' bref atrig lowexp ',
+        'info.imgformats':          'P16 P16R P10 P8 P8R',
+        'info.maxcines':            1600
     }
 
     # ###############################
@@ -124,6 +126,15 @@ class PhantomCamera:
         'info.genlockstat':         'State of genlock system'
     }
 
+    STATUS_INFO_DEFAULT = {
+        'info.snstemp':             60,
+        'info.tepower':             12,
+        'info.fanpower':            32,
+        'info.camtemp':             45,
+        'info.batti':               1200,
+        'info.battv':               1370,
+    }
+
     # ####################################
     # ETHERNET CONFIGURATION OF THE CAMERA
     # ####################################
@@ -137,6 +148,12 @@ class PhantomCamera:
         'eth.xip':                  'string IP address for 10G connection',
         'eth.xnetmask':             'String network mask for 10G connection',
         'eth.xbroadcast':           'String Broadcast mask for 10G connection'
+    }
+
+    ETHERNET_DEFAULT = {
+        'eth.ip':                   '127.0.0.1',
+        'eth.netmask':              '255.255.0.0',
+        'eth.broadcast':            '127.0.0.1',
     }
 
     # ###############################
@@ -156,7 +173,9 @@ class PhantomCamera:
 
     CAPTURE_PROCESS_DEFAULT = {
         'defc.res':                 '1500 x 1000',
-        'defc.exp':                 10000000
+        'defc.exp':                 10000000,
+        'defc.rate':                1000000,
+        'defc.edrecp':              100
     }
 
     # ##############################
@@ -176,7 +195,9 @@ class PhantomCamera:
         **SENSOR_INFO_DEFAULT,
         **IDENTIFICATION_INFO_DEFAULT,
         **CAPABILITIES_INFO_DEFAULT,
-        **CAPTURE_PROCESS_DEFAULT
+        **CAPTURE_PROCESS_DEFAULT,
+        **STATUS_INFO_DEFAULT,
+        **ETHERNET_DEFAULT
     }
 
     # ##################
@@ -190,7 +211,25 @@ class PhantomCamera:
     # ###########
 
     def __init__(self):
-        pass
+        """
+        The constructor
+
+        CHANGELOG
+
+        Added 22.02.2019
+
+        Changed 01.03.2019
+        Added the attribute values, which will contain a copy of the DEFAULTS array, which contains the initial values
+        to all the internal structures of the phantom. We need the actual values now because by using "set" commands it
+        should be possible to modify the attributes of a Camera instance
+        """
+        # 01.03.2019
+        # So the values can be modified by a set command
+        self.values = self.DEFAULTS.copy()
+
+    # #################
+    # CAMERA OPERATIONS
+    # #################
 
     def get(self, structure_name):
         """
@@ -200,10 +239,35 @@ class PhantomCamera:
 
         Added 22.02.2019
 
+        Changed 01.03.2019
+        Instead of grabbing the value directly from the static DEFAULTS dict, it is now being taken from the "values"
+        attribute of the phantom instance. This way the values can reflect a change through a set command
+
         :param structure_name:
         :return:
         """
-        return '%s : %s' % (structure_name, self.DEFAULTS[structure_name])
+        return '%s : %s' % (structure_name, self.values[structure_name])
+
+    def set(self, structure_name, value):
+        """
+        Set a new value to one of the cameras attributes
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :param structure_name:
+        :param value:
+        :return:
+        """
+        if structure_name in self.values.keys():
+            self.values[structure_name] = value
+        else:
+            raise KeyError('Phantom does not have an attribute %s' % structure_name)
+
+    def grab(self):
+        # TODO: Make it return a randomly generated static image
+        raise NotImplementedError()
 
     def grab_sample(self):
         """

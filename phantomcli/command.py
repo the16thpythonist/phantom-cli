@@ -1,5 +1,6 @@
 # Standard library imports
 import logging
+from collections import defaultdict
 
 # Third party imports
 import parsimonious
@@ -78,3 +79,70 @@ class Visitor(parsimonious.nodes.NodeVisitor):
 
 def parse_parameters(string):
     return Visitor().visit(grammar.parse(string))
+
+
+# ###########################
+# DETAILS OF THE V16 PROTOCOL
+# ###########################
+
+class ImgFormatsMap:
+    """
+    This is a static class, that works as a wrapper for the image transfer format functionality. When specifying the
+    image transfer format in an actual command call to the camera, their integer representations have to be used, but
+    they also have a string name/token these are used when specifying the format as a function/constructor argument in
+    the code for example, to make the code more readable and also not have the users have to memorize the uninformative
+    integer numbers for each format.
+
+    CHANGELOG
+
+    Added 28.02.2019
+    """
+
+    _TOKENS = {
+        '272':           'P16',
+        '-272':          'P16R',
+        '8':             'P8',
+        '-8':            'P8R',
+        '266':           'P10'
+    }
+    TOKENS = defaultdict(lambda: 'P16', **_TOKENS)
+
+    _NUMBERS = {
+        'P16':          272,
+        'P16R':         (-272),
+        'P8':           8,
+        'P8R':          (-8),
+        'P10':          266
+    }
+    NUMBERS = defaultdict(lambda: 272, **_NUMBERS)
+
+    @classmethod
+    def get_token(cls, number):
+        """
+        Given the number of the format, returns the corresponding string token.
+
+        CHANGELOG
+
+        Added 28.02.2019
+
+        :param number:
+        :return:
+        """
+        return cls.TOKENS[str(number)]
+
+    @classmethod
+    def get_number(cls, token):
+        """
+        Given the string token of a format, returns the corresponding number
+
+        CHANGELOG
+
+        Added 28.02.2019
+
+        :param token:
+        :return:
+        """
+        # The token string is supposed to be case insensitive, so that even if a human types in the letters in lower
+        # case the program still knows "what was meant"
+        token_upper = token.upper()
+        return cls.NUMBERS[token_upper]

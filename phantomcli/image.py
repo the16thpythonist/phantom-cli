@@ -23,6 +23,16 @@ class PhantomImage:
     # CONVERSION TO DIFFERENT FORMATS
     # ###############################
 
+    def to_transfer_format(self, fmt):
+        _methods = {
+            272:    self.p16,
+            -272:   self.p16,
+            8:      self.p8,
+            -8:     self.p8,
+            266:    self.p10
+        }
+        return _methods[fmt]()
+
     def p16(self):
         """
         Converts the image to the P16 transfer format, which is essentially just a long byte string, with two bytes for
@@ -38,6 +48,41 @@ class PhantomImage:
         with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
             for x in it:
                 pixel_bytes = bytes([0, x])
+                byte_buffer.append(pixel_bytes)
+        return b''.join(byte_buffer)
+
+    def p8(self):
+        """
+        Converts the image to the P8 transfer format, which is essentially just a long byte string, with ONE byte
+        (8 Bit) for each pixel in the image.
+
+        CHANGELOG
+
+        Added 26.02.2019
+
+        :return:
+        """
+        byte_buffer = []
+        with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
+            for x in it:
+                pixel_bytes = bytes([x])
+                byte_buffer.append(pixel_bytes)
+        return b''.join(byte_buffer)
+
+    def p10(self):
+        """
+        Converts the image to the P10 transfer format.
+
+        CHANGELOG
+
+        Added 26.02.2019
+
+        :return:
+        """
+        byte_buffer = []
+        with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
+            for x in it:  # type: int
+                pixel_bytes = int(x).to_bytes(4, 'big')
                 byte_buffer.append(pixel_bytes)
         return b''.join(byte_buffer)
 
@@ -83,3 +128,71 @@ class PhantomImage:
         array = np.array(pixels)
         array = array.reshape(resolution)
         return cls(array)
+
+    @classmethod
+    def from_p8(cls, raw_bytes, resolution):
+        """
+        Given a byte string a resolution tuple of two ints, this method will convert it into a PhantomImage object and
+        return that.
+
+        CHANGELOG
+
+        Added 26.02.2019
+
+        :param raw_bytes:
+        :param resolution:
+        :return:
+        """
+        pixels = []
+        for byte in raw_bytes:
+            pixels.append(byte)
+        array = np.array(pixels)
+        array = array.reshape(resolution)
+        return cls(array)
+
+    @classmethod
+    def from_p10(cls, raw_bytes, resolution):
+        """
+        Converts the raw bytes in p10 format into PhantomImage object
+
+        CHANGELOG
+
+        Added 26.02.2019
+        
+        :param raw_bytes:
+        :param resolution:
+        :return:
+        """
+        pixels = []
+        for i in range(0, len(raw_bytes), 4):
+            bits_32 = raw_bytes[i:i+4]
+            value = int.from_bytes(bits_32, byteorder='big')
+            pixels.append(value)
+        array = np.array(pixels)
+        array = array.reshape(resolution)
+        return cls(array)
+
+    @classmethod
+    def from_transfer_format(cls, fmt, raw_bytes, resolution):
+        """
+        Given the raw bytes string received from the socket and the resolution of the image, this method will create
+        a new PhantomImage object from that information using the format identified by the given string format token
+        name "fmt"
+
+        CHANGELOG
+
+        Added 28.02.2019
+
+        :param fmt:
+        :param raw_bytes:
+        :param resolution:
+        :return:
+        """
+        _methods = {
+            'P16':          cls.from_p16,
+            'P16R':         cls.from_p16,
+            'P8':           cls.from_p8,
+            'P8R':          cls.from_p8,
+            'P10':          cls.from_p10
+        }
+        return _methods[fmt](raw_bytes, resolution)

@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='phantom-cli',
-    version='0.0.0.8',
+    version='0.0.0.11',
     description='command line tools to interact with the phantom camera',
     url='https://github.com/the16thpythonist/phantom-cli',
     author='Jonas Teufel',
@@ -13,7 +13,8 @@ setup(
         'phantomcli.scripts'
     ],
     package_data={
-        'scripts': '*'
+        'scripts': ['*'],
+        '': ['sample.jpg', '*.jpg']
     },
     install_requires=[
         'click',
@@ -29,7 +30,9 @@ setup(
                 'ph-test=phantomcli.scripts.phtest:command',
                 'ph-mock=phantomcli.scripts.phmock:command',
                 'ph-get=phantomcli.scripts.phget:command',
-                'ph-img=phantomcli.scripts.phimg:command'
+                'ph-getall=phantomcli.scripts.phgetall:command',
+                'ph-set=phantomcli.scripts.phset:command',
+                'ph-img=phantomcli.scripts.phimg:command',
             ]
     },
     python_requires='~=3.5',

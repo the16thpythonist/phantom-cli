@@ -5,6 +5,16 @@ in general.
 
 ## Getting started
 
+### pre
+
+This package uses python 3, so make sure python 3.5+ is installed on your system.
+This package also uses the python package "matplotlib", which in turn relies on the python module 
+"tkinter", which cannot be installed as a dependency, instead make sure to install it by typing into the 
+terminal (on ubuntu):
+```bash
+sudo apt-get install python3-tk
+```
+
 ### Installing
 
 This package can be installed using the [Python Package Index(PyPi)](https://pypi.org/).
@@ -44,11 +54,13 @@ It simulates the behaviour of a real phantom camera
 
 #### Reading phantom attributes
 
-To read attributes of the phantom camera use the phget script
+To read single attributes from the camera, you can use the "ph-get" command. It will send the according get request to 
+the camera and display the received response:
 ```bash
 ph-get <IP ADDRESS> <ATTRIBUTE>
 ```
-Replace ATTRIBUTE with the name of the attribute/structure to be read from the phantom
+Replace *IP ADDRESS* with the actual IP address of the phantom camera you are connected to and *ATTRIBUTE* with the 
+name of the attribute, which you want to read out.
 
 #### Grabbing an image from the camera
 
@@ -103,6 +115,15 @@ the project folder.
 ### 0.0.0.8 - 23.02.2019
 - Fixed a bug with the scripts not being included into the pypi package
 
-### 0.0.0.8 - 26.02.2019
+### 0.0.0.9 - 26.02.2019
 - Fixed some additional bugs, while working with the actual camera, all previous programming was based on 
 assumptions made from the used protocol
+
+### 0.0.0.11 - 07.03.2019
+- Implemented conversion from and to P8 and P10 image transfer formats in PhantomImage
+- Implemented the P8 and P10 img transfer formats for the PhantomSocket.
+- class command.ImgFormatsMap: static class, that maps the string and int representations of the image transfer formats
+- script "phgetall", which will make multiple get request to the camera and then display a formatted listing of the most 
+important attributes of the camera along with the descriptions
+- script "phset", which can be used to modify attributes of the camera
+- Set up documentation on "read the docs"

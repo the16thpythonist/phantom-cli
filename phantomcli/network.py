@@ -15,6 +15,7 @@ import re
 from phantomcli.phantom import PhantomCamera
 from phantomcli.image import PhantomImage
 from phantomcli.command import parse_parameters
+from phantomcli.command import ImgFormatsMap
 
 
 # Setting the server
@@ -43,7 +44,29 @@ class PhantomSocket:
 
     RESPONSE_SEPARATOR = r'\r\n'
 
-    def __init__(self, ip, timeout=10, data_ip='127.0.0.1', data_port=7116, camera_class=PhantomCamera):
+    # ######################
+    # IMAGE TRANSFER FORMATS
+    # ######################
+
+    # This dict assigns the byte size to each possible image transfer format. The byte size is an integer of how many
+    # bytes each pixel is made up of in the corresponding raw data stream.
+    IMG_FORMAT_BYTES = {
+        'P8':               1,
+        'P8R':              1,
+        'P16':              2,
+        'P16R':             2,
+        'P10':              4
+    }
+
+    def __init__(
+            self,
+            ip,
+            timeout=10,
+            data_ip='127.0.0.1',
+            data_port=7116,
+            img_format='P16',
+            camera_class=PhantomCamera
+    ):
         """
         Constructor.
 
@@ -59,6 +82,10 @@ class PhantomSocket:
         Changed 23.02.2019
         Added the parameter for the data port and the the attributes for the data port and the data server, which will
         contain a reference to the server object, which will be used to receive images from the phantom.
+
+        Changed 28.02.2019
+        Added the parameter and attribute "img_format" for saving the string token name of the transfer format to be
+        used.
 
         :param ip:
         """
@@ -92,6 +119,10 @@ class PhantomSocket:
         self.data_ip = data_ip
         self.data_server = None
 
+        # 28.02.2019
+        # Will save the image format to be used for the
+        self.img_format = img_format
+
     # ######################################
     # IMAGE ACQUISITION OPERATION ON PHANTOM
     # ######################################
@@ -106,6 +137,9 @@ class PhantomSocket:
         CHANGELOG
 
         Added 23.02.2019
+
+        Changed 28.02.2019
+        Actually using the value for the img format specified in "img_format" now.
 
         :return:
         """
@@ -126,17 +160,30 @@ class PhantomSocket:
         response = self.receive_image_response()
         self.logger.debug('The response dict: %s', response)
         resolution = response['res']
-        self.data_server.size = self.image_byte_size(resolution, image_format='p16')
+
+        # 28.02.2019
+        # The actual value of the "img_format" property is being used now, that all the formats are implemented
+        self.data_server.size = self.image_byte_size(resolution, image_format=self.img_format)
 
         # This call to "receive_image" will be blocking until the server has received every single byte of the image.
         # From the raw byte string we can reconstruct the image with the additional info about the resolution (when to
         # make a column break)
         image_bytes = self.data_server.receive_image()
-        phantom_image = PhantomImage.from_p16(image_bytes, response['res'])
+
+        # 28.02.2019
+        # The image is now also being created from the used transfer format based on the dynamic value saved in the
+        # "img_format" attribute.
+        self.logger.debug(
+            'Converting %s byte string to PhantomImage with format %s and res %s',
+            len(image_bytes),
+            self.img_format,
+            resolution
+        )
+        phantom_image = PhantomImage.from_transfer_format(self.img_format, image_bytes, resolution)
 
         return phantom_image
 
-    def image_byte_size(self, resolution, image_format='p16'):
+    def image_byte_size(self, resolution, image_format='P16'):
         """
         Calculates the byte size to be received over the socket given the resolution of the image and the used format
 
@@ -144,15 +191,28 @@ class PhantomSocket:
 
         Added 23.02.2019
 
+        Changed 28.02.2019
+        All image transfer formats with their different byte sizes are implemented now and thus the size of the stream
+        is calculated in here accordingly.
+
         :param resolution:
         :param image_format:
         :return:
         """
+        # 28.02.2019
+        # To make the given string case insensitive
+        image_format_upper = image_format.upper()
+
         pixel_count = resolution[0] * resolution[1]
-        if image_format == 'p16':
-            byte_count = pixel_count * 2
+
+        # 28.02.2019
+        # All the formats are implemented now, and the amount of bytes each pixel is made up of is saved in the static
+        # dict. The format still has to be a valid key to that dict though.
+        if image_format_upper in self.IMG_FORMAT_BYTES.keys():
+            byte_count = pixel_count * self.IMG_FORMAT_BYTES[image_format_upper]
         else:
             raise NotImplementedError('Format %s is not supported' % image_format)
+
         return byte_count
 
     def send_img_request(self):
@@ -163,9 +223,16 @@ class PhantomSocket:
 
         Added 23.02.2019
 
+        Changed 28.02.2019
+        Using the actual image format specified in the "img_format" attribute
+
         :return:
         """
-        command_string = 'img {cine:-1, start:1, cnt:1, fmt:272}'
+        # 28.02.2019
+        # The "img_format" attribute saves the string token name of the format, for the request to the camera the
+        # number representation is needed though.
+        img_format_number = ImgFormatsMap.get_number(self.img_format)
+        command_string = 'img {cine:-1, start:1, cnt:1, fmt:%s}' % img_format_number
         self.send(command_string)
         self.logger.debug('Sent img request for grabbing a picture')
 
@@ -238,6 +305,56 @@ class PhantomSocket:
         command_string = 'startdata {port:%s}' % port
         self.send(command_string)
         self.logger.debug('Sent start data request on port %s to phantom', port)
+
+    # #########################
+    # SET OPERATIONS ON PHANTOM
+    # #########################
+
+    def set(self, structure_name, value):
+        """
+        Sets the given value to the given attribute of the phantom
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :param structure_name:
+        :param value:
+        :return:
+        """
+        self.send_set_request(structure_name, value)
+        response_list = self.receive_set_response()
+        return response_list
+
+    def send_set_request(self, structure_name, value):
+        """
+        Send a SET request for the given value and attribute of the phantom over the network socket
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :param structure_name:
+        :param value:
+        :return:
+        """
+        command_string = 'set %s %s' % (structure_name, value)
+        self.send(command_string)
+        self.logger.debug('Send SET to phantom')
+
+    def receive_set_response(self):
+        """
+        Receive the response to a SET request
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :return:
+        """
+        response_string = self.receive_until(self.RESPONSE_TERMINATION)
+        response_list = self.get_response_list(response_string)
+        return response_list
 
     # #########################
     # GET OPERATIONS ON PHANTOM
@@ -326,6 +443,7 @@ class PhantomSocket:
         """
         response_string = self.receive_until(self.RESPONSE_TERMINATION)
         response_list = self.get_response_list(response_string)
+
         return response_list
 
     def get_response_list(self, response_string):
@@ -495,6 +613,10 @@ class PhantomSocket:
         self.logger.debug('Pinged %s and received response "%s"', self.ip, response)
         return response == 0
 
+    # ###############################
+    # OBJECT PROPERTIES GETTER/SETTER
+    # ###############################
+
     # ###############
     # UTILITY METHODS
     # ###############
@@ -533,6 +655,12 @@ class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
         CHANGELOG
 
         Added 23.02.2019
+
+        Changed 26.02.2019
+        Now the program is not expecting the complete amount of pixels to be received, but is also fine with the last
+        100 bytes missing from the last TCP package. The missing bytes will just be padded with zeros. This was
+        necessary as the camera seems to miss a few bytes from time to time.
+
         :return:
         """
         self.server.logger.debug(
@@ -551,7 +679,7 @@ class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
 
             if len(buffer) != self.server.size:
                 buffer += data
-                self.server.logger.debug(len(buffer))
+                # self.server.logger.debug(len(buffer))
             if len(buffer) >= self.server.size - 100:
                 # Once the image has been received, the byte string is being passed to the server object by setting
                 # its 'image_bytes' attribute. The the main loop is being ended, thus ending the whole handler thread
@@ -574,7 +702,7 @@ class PhantomDataTransferServer(socketserver.ThreadingTCPServer):
     Added 23.02.2019
     """
 
-    def __init__(self, ip, port, handler_class=PhantomDataTransferHandler):
+    def __init__(self, ip, port, format='P8', handler_class=PhantomDataTransferHandler):
         """
         The constructor
 
@@ -582,8 +710,12 @@ class PhantomDataTransferServer(socketserver.ThreadingTCPServer):
 
         Added 23.02.2019
 
+        Changed 28.02.2019
+        Added the additional parameter and attribute "format", which defines the used image transfer format.
+
         :param ip:
         :param port:
+        :param format:
         :param handler_class:
         """
         # Creating a new logger, whose name is a combination from the module name and the class name of this very class
@@ -602,6 +734,12 @@ class PhantomDataTransferServer(socketserver.ThreadingTCPServer):
         self.logger.debug('Created Phantom data stream server at IP %s on PORT %s', self.ip, self.port)
         self.thread = threading.Thread(target=self.serve_forever)
         self.running = None
+
+        # 28.02.2019
+        # This attribute will store the string token name of the image transfer format, that is being used to transfer
+        # the images. This is crucially important, because the amount of bytes to be expected from the socket strongly
+        # depends on the format.
+        self.format = format
 
     # ########################
     # DATA RECEPTION FUNCTIONS
@@ -766,10 +904,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         # Here we send the actual image as bytes over the data socket connection
         self.server.logger.debug('Sending image now')
-        self.send_image(phantom_image)
+        self.send_image(phantom_image, parameters['fmt'])
         self.server.logger.debug('finished sending image')
 
-    def send_image(self, phantom_image):
+    def send_image(self, phantom_image, image_format):
         """
         Sends the actual image as byte string over the data client socket
 
@@ -780,7 +918,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         :param phantom_image:
         :return:
         """
-        image_bytes = phantom_image.p16()
+        image_bytes = phantom_image.to_transfer_format(image_format)
         self.server.logger.debug('Sending image with size %s bytes', len(image_bytes))
         self.data_client.sendall(image_bytes)
 
@@ -843,17 +981,45 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         Added 21.02.2019
 
+        Changed 01.03.2019
+        Actually sending an error message back now, when an unknown attribute is requested.
+
         :param data:
         :return:
         """
         # Actually getting the value from the phantom object
         structure_name = data[0]
         self.server.logger.debug('GET %s', structure_name)
-        structure_value = self.server.camera.get(structure_name)
+        try:
+            structure_value = self.server.camera.get(structure_name)
 
-        # Sending the response
-        response_list = self.create_response_list(structure_value)
-        self.send_get_response(response_list)
+            # Sending the response
+            response_list = self.create_response_list(structure_value)
+            self.send_get_response(response_list)
+        except KeyError:
+            self.send_key_error(structure_name)
+
+    def handle_set(self, data):
+        """
+        Setting the new value to the camera object maintained by the server
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :param data:
+        :return:
+        """
+        structure_name = data[0]
+        value = ''.join(data[1:])
+        self.server.logger.debug('SET %s %s' % (structure_name, value))
+        try:
+            self.server.camera.set(structure_name, value)
+
+            # Maybe actually check the data here at some point
+            self.send_ok()
+        except KeyError:
+            self.send_key_error(structure_name)
 
     def handle_trig(self, data):
         self.send_ok()
@@ -867,6 +1033,19 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
     # #############################
     # ADDITIONAL NETWORK OPERATIONS
     # #############################
+
+    def send_key_error(self, key):
+        """
+        Send a ERR response, which tells that the given structure name is not a valid attribute of the camera
+
+        CHANGELOG
+
+        Added 01.03.2019
+
+        :param key:
+        :return:
+        """
+        self.send('ERR: name %s is unknown' % key)
 
     def send_ok(self):
         """

@@ -12,34 +12,28 @@ import matplotlib.pyplot as plt
 
 # package imports
 from phantomcli.network import PhantomSocket
-from phantomcli.image import PhantomImage
-from phantomcli.network import logger
-from phantomcli.network import PhantomMockServer
+from phantomcli.scripts.util import logging_config, logging_format, formats
 
 
-# This will be the translation table, which will be used to return the appropriate constant for defining the logging
-# level based on the string passed through the command line option. We are using a default dict, so we do not have to
-# deal with a if statement. In case an invalid string is given, the default dict will just return the constant for
-# the debug mode, even though the given string isnt even one of its keys.
-kwargs = {
-    'DEBUG':    logging.DEBUG,
-    'INFO':     logging.INFO,
-    'WARNING':  logging.WARNING,
-    'ERROR':    logging.ERROR
-}
-logging_config = defaultdict(int, **kwargs)
-logging_config.default_factory = lambda: logging.DEBUG
-
-
-@click.command('connection')
+@click.command('phget')
+@click.option('--format', '-f', default='P16')
 @click.option('--dataport', '-p', default=60000)
 @click.option('--dataip', '-i', default='127.0.0.1')
 @click.option('--log', '-l', default='DEBUG')
 @click.argument('ip')
-def command(ip, log, dataip, dataport):
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging_config[log])
+def command(ip, log, dataip, dataport, format):
+    logging.basicConfig(
+        format=logging_format,
+        level=logging_config[log]
+    )
 
-    phantom_socket = PhantomSocket(ip, data_ip=dataip, data_port=dataport)
+    # Creating the phantom socket to communicate with the camera
+    phantom_socket = PhantomSocket(
+        ip,
+        img_format=formats[format],
+        data_ip=dataip,
+        data_port=dataport
+    )
     phantom_socket.connect()
     click.echo('CONNECTED TO THE PHANTOM CAMERA')
 
