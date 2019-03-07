@@ -10,7 +10,7 @@ Welcome to phantomcli's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   test
+   setting-up
 
 
 
