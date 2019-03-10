@@ -5,7 +5,7 @@ in general.
 
 ## Getting started
 
-### pre
+### prerequisites
 
 This package uses python 3, so make sure python 3.5+ is installed on your system.
 This package also uses the python package "matplotlib", which in turn relies on the python module 
@@ -43,33 +43,9 @@ specific phantom camera model:
 ph-test <IP ADDRESS>
 ```
 
-#### Starting the mock server
+For a more detailed information on how to use this package please visit the [Documentation](https://phantom-cli.readthedocs.io/en/latest/index.html)!
 
-To be able to test other services, that are supposed to make a connection with the phantom camera a mock server on the 
-localhost address 127.0.0.1 and the phantom control interface port 7115 can be started by executing the script 
-```bash
-ph-mock
-```
-It simulates the behaviour of a real phantom camera
 
-#### Reading phantom attributes
-
-To read single attributes from the camera, you can use the "ph-get" command. It will send the according get request to 
-the camera and display the received response:
-```bash
-ph-get <IP ADDRESS> <ATTRIBUTE>
-```
-Replace *IP ADDRESS* with the actual IP address of the phantom camera you are connected to and *ATTRIBUTE* with the 
-name of the attribute, which you want to read out.
-
-#### Grabbing an image from the camera
-
-To grab a single image frame from the camera use the following command, replacing the YOUR OWN IP ADDRESS with the 
-ip address, the phantom told you to use.
-```bash
-ph-img <IP ADDRESS> -i <YOUR OWN IP ADDRESS>
-```
-If everything works correctly the result will be the image showing as a separate on the screen
 
 ## Authors
 
