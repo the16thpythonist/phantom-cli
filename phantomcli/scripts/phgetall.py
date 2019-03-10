@@ -12,8 +12,10 @@ import texttable
 
 # package imports
 from phantomcli.network import PhantomSocket
-from phantomcli.scripts.util import logging_config, logging_format, formats
 from phantomcli.phantom import PhantomCamera
+from phantomcli.scripts.util import logging_config, logging_format, formats
+from phantomcli.scripts.util import log_help, format_help
+
 
 # The list with all the attribute names to be read from the camera
 attributes = [
@@ -41,10 +43,15 @@ attributes = [
 
 
 @click.command('connection')
-@click.option('--format', '-f', default='P16')
-@click.option('--log', '-l', default='DEBUG')
+@click.option('--format', '-f', default='P16', help=format_help)
+@click.option('--log', '-l', default='ERROR', help=log_help)
 @click.argument('ip')
 def command(ip, log, format):
+    """
+    Given the IP ADDRESS of the camera, this will send a series of requests for the most important attributes of the
+    camera and then display them in a table to the console. The table will contain the name of the attribute fetched,
+    its actual value from the camera and a short description for that attribute.
+    """
     # Setting up the logging
     logging.basicConfig(format=logging_format, level=logging_config[log])
 

@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='phantom-cli',
-    version='0.0.0.11',
+    version='0.0.0.12',
     description='command line tools to interact with the phantom camera',
     url='https://github.com/the16thpythonist/phantom-cli',
     author='Jonas Teufel',

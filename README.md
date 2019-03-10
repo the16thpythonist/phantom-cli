@@ -127,3 +127,7 @@ assumptions made from the used protocol
 important attributes of the camera along with the descriptions
 - script "phset", which can be used to modify attributes of the camera
 - Set up documentation on "read the docs"
+
+### 0.0.0.13 - 10.03.2019
+
+- Added documentation to the scripts by adding a helpful "--help" text

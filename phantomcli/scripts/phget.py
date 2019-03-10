@@ -12,28 +12,19 @@ import click
 # package imports
 from phantomcli.network import PhantomSocket
 from phantomcli.scripts.util import logging_format, logging_config, formats
+from phantomcli.scripts.util import format_help, log_help
 
 
 @click.command('connection')
-@click.option('--format', '-f', default='P16')
-@click.option('--log', '-l', default='DEBUG')
+@click.option('--format', '-f', default='P16', help=format_help)
+@click.option('--log', '-l', default='ERROR', help=log_help)
 @click.argument('ip')
 @click.argument('key')
 def command(key, ip, log, format):
     """
-
-    CHANGELOG
-
-    Added 23.02.2019
-
-    Changed 28.20.2019
-    Added the parameter "format" to specify the image transfer format to be used
-
-    :param key:
-    :param ip:
-    :param log:
-    :param format:
-    :return:
+    Given the IP ADDRESS of the camera, to which you are connected and the ATTRIBUTE NAME of the attribute you want
+    to access a command will be sent to the camera, returning the value of the requested attribute and displaying it
+    in the console.
     """
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging_config[log])
 

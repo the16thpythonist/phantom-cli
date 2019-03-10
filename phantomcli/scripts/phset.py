@@ -13,16 +13,20 @@ import texttable
 # package imports
 from phantomcli.network import PhantomSocket
 from phantomcli.scripts.util import logging_config, logging_format, formats
-from phantomcli.phantom import PhantomCamera
+from phantomcli.scripts.util import log_help, format_help
 
 
 @click.command('connection')
-@click.option('--format', '-f', default='P16')
-@click.option('--log', '-l', default='DEBUG')
+@click.option('--format', '-f', default='P16', help=format_help)
+@click.option('--log', '-l', default='ERROR', help=log_help)
 @click.argument('ip')
 @click.argument('key')
 @click.argument('value')
 def command(value, key, ip, log, format):
+    """
+    Given the IP ADDRESS of the camera, the ATTRIBUTE NAME of the attribute to be changed and the new VALUE to be set
+    this will send a command to the phantom, changing the value of the requests attribute to the new given value.
+    """
     # Setting up the logging to the console
     logging.basicConfig(format=logging_format, level=logging_config[log])
 
