@@ -119,7 +119,7 @@ the project folder.
 - Fixed some additional bugs, while working with the actual camera, all previous programming was based on 
 assumptions made from the used protocol
 
-### 0.0.0.11 - 07.03.2019
+### 0.0.0.12 - 07.03.2019
 - Implemented conversion from and to P8 and P10 image transfer formats in PhantomImage
 - Implemented the P8 and P10 img transfer formats for the PhantomSocket.
 - class command.ImgFormatsMap: static class, that maps the string and int representations of the image transfer formats
