@@ -29,7 +29,12 @@ class PhantomImage:
             -272:   self.p16,
             8:      self.p8,
             -8:     self.p8,
-            266:    self.p10
+            266:    self.p10,
+            'P16':  self.p16,
+            'P16R': self.p16,
+            'P8':   self.p8,
+            'P8R':  self.p8,
+            'P10':  self.p10
         }
         return _methods[fmt]()
 

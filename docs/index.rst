@@ -11,7 +11,7 @@ Welcome to phantomcli's documentation!
 
    setting-up
    accessing-attributes
-   grabbing-frames
+   grabbing-images
    simulating-camera
 
 
