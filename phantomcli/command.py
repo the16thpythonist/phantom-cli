@@ -78,6 +78,7 @@ class Visitor(parsimonious.nodes.NodeVisitor):
 
 
 def parse_parameters(string):
+    logger.debug(string)
     return Visitor().visit(grammar.parse(string))
 
 

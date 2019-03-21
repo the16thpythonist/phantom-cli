@@ -107,3 +107,10 @@ important attributes of the camera along with the descriptions
 ### 0.0.0.13 - 10.03.2019
 
 - Added documentation to the scripts by adding a helpful "--help" text
+
+### 0.0.0.14 
+
+- Added a method for the PhantomImage and PhantomCamera to create random images instead of using always the 
+one static image.
+- Added a parameter to the phmock script to specify a image policy. Either static sample or randomly created image.
+

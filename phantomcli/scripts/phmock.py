@@ -28,7 +28,7 @@ def command(log):
     logging.basicConfig(format=logging_format, level=logging_config[log])
 
     # Simply starting a mock server here and waiting for any requests to come in
-    mock_server = PhantomMockServer()
+    mock_server = PhantomMockServer(image_policy='random')
     mock_server.start()
     click.echo('MOCK SERVER STARTED!')
 

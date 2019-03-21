@@ -25,7 +25,7 @@ class TestPhantomImage(TestCase):
 
     def test_image_conversion_to_p16_working(self):
         image_array = np.array([8, 7])
-        expected_bytes = b'\x00\x08\x00\x07'
+        expected_bytes = b'\x08\x00\x07\x00'
 
         phantom_image = PhantomImage(image_array)
         actual_bytes = phantom_image.p16()
@@ -33,7 +33,9 @@ class TestPhantomImage(TestCase):
 
     def test_image_creation_from_p16_working(self):
         expected_array = np.array([[8, 7], [2, 4]])
-        image_bytes = b'\x00\x08\x00\x07\x00\x02\x00\x04'
+        # 18.03.2019
+        # This should be the image represented as little endian 16 bit values per pixel in the image
+        image_bytes = b'\x08\x00\x07\x00\x02\x00\x04\x00'
 
         phantom_image = PhantomImage.from_p16(image_bytes, (2, 2))
         self.assertTrue(np.alltrue(expected_array == phantom_image.array))
@@ -54,6 +56,8 @@ class TestPhantomImage(TestCase):
         # still is the same image
         phantom_image = PhantomImage.from_jpeg(self.IMAGE_PATH)
         phantom_image = PhantomImage.from_p8(phantom_image.p8(), phantom_image.resolution)
+        print(phantom_image.array)
+        print(expected_array)
         self.assertTrue(np.alltrue(expected_array == phantom_image.array))
 
     def test_sample_image_conversion_between_p10_and_jpeg(self):

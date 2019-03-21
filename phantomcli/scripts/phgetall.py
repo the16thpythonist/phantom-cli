@@ -25,6 +25,8 @@ attributes = [
     'info.features',
     'info.imgformats',
     'info.maxcines',
+    'info.xmax',
+    'info.ymax',
     '',
     'info.snstemp',
     'info.camtemp',

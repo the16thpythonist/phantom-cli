@@ -1,4 +1,6 @@
 # Standard library imports
+import struct
+import logging
 
 # third party imports
 import numpy as np
@@ -13,11 +15,20 @@ class PhantomImage:
     CHANGELOG
 
     Added 23.02.2019
+
+    Changed 20.03.2019
+    Checking the edge case of what happens when the passed array is one dimensional.
     """
 
     def __init__(self, array):
         self.array = array
-        self.resolution = array.shape
+
+        # 20.03.2019
+        # In case a one dimensional array is being passed it is being interpreted that the y axis is just 1 pixel wide
+        if len(array.shape) == 1:
+            self.resolution = (array.shape[0], 1)
+        else:
+            self.resolution = (array.shape[0], array.shape[1])
 
     # ###############################
     # CONVERSION TO DIFFERENT FORMATS
@@ -47,12 +58,19 @@ class PhantomImage:
 
         Added 23.02.2019
 
+        Changed 18.03.2019
+        Switched to using the struct packing to handle the byte strings.
+
         :return:
         """
         byte_buffer = []
         with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
             for x in it:
-                pixel_bytes = bytes([0, x])
+
+                # 18.03.2019
+                # The format "<" tells that it is little endian byte order and "H" is for short, the datatype with
+                # 2 bytes aka 16 bit.
+                pixel_bytes = struct.pack('<H', x)
                 byte_buffer.append(pixel_bytes)
         return b''.join(byte_buffer)
 
@@ -65,12 +83,19 @@ class PhantomImage:
 
         Added 26.02.2019
 
+        Changed 18.03.2019
+        Switched to using the struct packing to handle the byte strings.
+
         :return:
         """
         byte_buffer = []
         with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
             for x in it:
-                pixel_bytes = bytes([x])
+
+                # 18.03.2019
+                # The format ">" stands for big endian byte order and "B" is for "unsigned char" data type, which has
+                # 1 byte aka 8 bit.
+                pixel_bytes = struct.pack('>B', x)
                 byte_buffer.append(pixel_bytes)
         return b''.join(byte_buffer)
 
@@ -86,9 +111,20 @@ class PhantomImage:
         """
         byte_buffer = []
         with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
-            for x in it:  # type: int
-                pixel_bytes = int(x).to_bytes(4, 'big')
-                byte_buffer.append(pixel_bytes)
+
+            values = list(it)
+            for i in range(0, len(values), 3):
+                temp = values[i:i+3]
+                final_value = 0
+                for value in temp:
+                    final_value |= value
+                    final_value <<= 10
+                final_value >>= 10
+                final_value <<= 2
+
+                byte = struct.pack('!L', final_value)
+                byte_buffer.append(byte)
+
         return b''.join(byte_buffer)
 
     # #############
@@ -121,6 +157,9 @@ class PhantomImage:
 
         Added 23.02.2019
 
+        Changed 18.03.2019
+        Switched to using the struct packing to handle the byte strings.
+
         :param raw_bytes:
         :param resolution:
         :return: PhantomImage
@@ -128,7 +167,11 @@ class PhantomImage:
         pixels = []
         for i in range(0, len(raw_bytes), 2):
             bytes_16 = raw_bytes[i:i+2]
-            value = int.from_bytes(bytes_16, byteorder='big')
+
+            # 18.03.2019
+            # The format '<' tells, that it is little endian byte order and "H" is for "short", the datatype with
+            # 2 bytes aka 16 bit.
+            value = struct.unpack('<H', bytes_16)[0]
             pixels.append(value)
         array = np.array(pixels)
         array = array.reshape(resolution)
@@ -163,16 +206,45 @@ class PhantomImage:
         CHANGELOG
 
         Added 26.02.2019
-        
+
+        Changed 18.03.2019
+        Switched to using the struct packing to handle the byte strings.
+
         :param raw_bytes:
         :param resolution:
         :return:
         """
+        mask = 0b1111111111
         pixels = []
+
+        index = 0
+        while index < len(raw_bytes):
+            _bytes = raw_bytes[index:index+20]
+            bytes_value = int.from_bytes(_bytes, 'big')
+            _temp = []
+            for i in range(16):
+                value = bytes_value & mask
+                _temp.append(value)
+                bytes_value >>= 10
+            pixels += reversed(_temp)
+            index += 20
+
+        """
         for i in range(0, len(raw_bytes), 4):
             bits_32 = raw_bytes[i:i+4]
-            value = int.from_bytes(bits_32, byteorder='big')
-            pixels.append(value)
+
+            # 18.03.2019
+            # The format '>' tells that it is big endian byte order and the 'L' is for the "long" datatype which is
+            # 4 byte aka 32 bit
+            value = struct.unpack('!L', bits_32)[0]
+            value >>= 2
+
+            mask = 0b1111111111
+            for i in range(0, 3, 1):
+                pixel_value = (value >> 10 * i) & mask
+                pixels.append(pixel_value)
+        """
+
         array = np.array(pixels)
         array = array.reshape(resolution)
         return cls(array)
@@ -200,4 +272,41 @@ class PhantomImage:
             'P8R':          cls.from_p8,
             'P10':          cls.from_p10
         }
-        return _methods[fmt](raw_bytes, resolution)
+        inverse_resolution = (resolution[1], resolution[0])
+        return _methods[fmt](raw_bytes, inverse_resolution)
+
+    @classmethod
+    def random(cls, resolution):
+        """
+        Creates random PhantomImage.
+
+        CHANGELOG
+
+        Added 18.03.2019
+
+        :param resolution:
+        :return:
+        """
+        # This will create the correct base array, which only contains regular 8 bit pixel values (range 0 to 256)
+        random_array = np.random.randint(0, 256, resolution)
+        # Creating a new PhantomImage object from this array and then returning the Image object
+        return cls(random_array)
+
+    # ##############
+    # HELPER METHODS
+    # ##############
+
+    @classmethod
+    def downscale(cls, array, bits=8):
+        """
+        This method takes an array, which represents an image and scales all the values down to the range between 0
+        and 128, which is needed to save the image in the common formats such as jpeg etc.
+
+        :param array:
+        :param bits:
+        :return:
+        """
+        downscaled_array = array
+        downscaled_array /= np.max(array)
+        downscaled_array *= 2**(bits - 1)
+        return downscaled_array

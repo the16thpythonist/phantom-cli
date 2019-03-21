@@ -1,3 +1,8 @@
+# TODO: Change back cine count
+# TODO: Intergrate 10G protocol
+# TODO: Research why bytes could be missing.
+
+
 # standard library imports
 import socket
 import logging
@@ -6,8 +11,11 @@ import threading
 import socketserver
 import demjson
 import os
-import time
-import re
+import struct
+import binascii
+
+from collections import defaultdict
+from uuid import getnode as get_mac
 
 # third party libraries
 
@@ -16,6 +24,7 @@ from phantomcli.phantom import PhantomCamera
 from phantomcli.image import PhantomImage
 from phantomcli.command import parse_parameters
 from phantomcli.command import ImgFormatsMap
+from phantomcli.data import PhantomDataTransferServer, PhantomXDataTransferServer, RawByteSender
 
 
 # Setting the server
@@ -44,6 +53,17 @@ class PhantomSocket:
 
     RESPONSE_SEPARATOR = r'\r\n'
 
+    # 19.03.2019
+    # This is a mapping, for which the value of the network_type is used as the input and according to the boolean
+    # value it will return the corresponding class for the data server, that either handles normal network connection
+    # or the 10G network connection.
+    # In general we are using default dicts here to avoid using if conditions to check for value validity. If a value
+    # is invalid, the default option will be chosen.
+    DATA_TRANSFER_SERVERS_MAPPING = defaultdict(lambda: PhantomDataTransferServer, **{
+        'e':        PhantomDataTransferServer,
+        'x':        PhantomXDataTransferServer
+    })
+
     # ######################
     # IMAGE TRANSFER FORMATS
     # ######################
@@ -55,7 +75,7 @@ class PhantomSocket:
         'P8R':              1,
         'P16':              2,
         'P16R':             2,
-        'P10':              4
+        'P10':              1.25
     }
 
     def __init__(
@@ -64,8 +84,10 @@ class PhantomSocket:
             timeout=10,
             data_ip='127.0.0.1',
             data_port=7116,
+            data_interface='enp1s0',
             img_format='P16',
-            camera_class=PhantomCamera
+            camera_class=PhantomCamera,
+            network_type='e'
     ):
         """
         Constructor.
@@ -117,11 +139,24 @@ class PhantomSocket:
         # specific IP and netmask setting for its controlling unit.
         self.data_port = data_port
         self.data_ip = data_ip
+        self.data_interface = data_interface
         self.data_server = None
+
+        # 19.03.2019
+        # If the value is "e", than it means a normal network is being used, if it is "x" it means a 10G ethernet
+        # connection is used, for which special rules apply and thus a special data transfer server is needed.
+        self.network_type = network_type
+        self.data_server_class = self.DATA_TRANSFER_SERVERS_MAPPING[self.network_type]
 
         # 28.02.2019
         # Will save the image format to be used for the
         self.img_format = img_format
+        if self.network_type == 'x':
+            self.img_format = 'P10'
+
+    # ####################################
+    # INITIALIZATION/CONFIGURATION METHODS
+    # ####################################
 
     # ######################################
     # IMAGE ACQUISITION OPERATION ON PHANTOM
@@ -141,6 +176,12 @@ class PhantomSocket:
         Changed 28.02.2019
         Actually using the value for the img format specified in "img_format" now.
 
+        Changed 19.03.2019
+        Moved the whole process of interacting with the data server object to actually receive the image into another
+        method.
+        Removed the call to startdata from this method, as this has to be done on a user level, because it should not
+        be used when handling a x-network connection.
+
         :return:
         """
         # We need to assume, that the data server has been started before calling this method, which is th case if the
@@ -150,7 +191,6 @@ class PhantomSocket:
         # With the data server already open, we are telling the phantom to connect to it now using the "startdata"
         # command. After the connection has been established we will send the actual "img" command, which will trigger
         # the phantom to send image bytes over the just established data connection.
-        self.startdata()
         self.send_img_request()
 
         # Over the control connection we have to receive the response to the "img" command, because it will contain the
@@ -161,6 +201,47 @@ class PhantomSocket:
         self.logger.debug('The response dict: %s', response)
         resolution = response['res']
 
+        # 19.03.2019
+        # Moved the whole process of communicating and creating the image wrapper object to a separate method
+        phantom_image = self.receive_image(resolution)
+
+        return phantom_image
+
+    def receive_image(self, resolution):
+        """
+        Given the resolution of the image to be received, this method will handle the actual interaction with the data
+        server object needed and the creation of the PhantomImage wrapper object from the raw byte string.
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        :param resolution:
+        :return:
+        """
+        # This method will handle the necessary interactions with the data server to actually receive the raw byte
+        # string representing the image from the data server's connection to the camera
+        image_bytes = self.receive_image_bytes(resolution)
+
+        # This creates a PhantomImage wrapper object from the raw bytes string. Obviously it also needs the resolution
+        # for that to be able to know, where to make the "line breaks"
+        phantom_image = self.create_image(image_bytes, resolution)
+
+        return phantom_image
+
+    def receive_image_bytes(self, resolution):
+        """
+        Given the resolution of the image, that is being sent, this method will calculate the according amount of bytes
+        to be received, pass them to the data server and then receive the raw bytes string, representing the image
+        from the data server. This byte string will then be returned.
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        :param resolution:
+        :return:
+        """
         # 28.02.2019
         # The actual value of the "img_format" property is being used now, that all the formats are implemented
         self.data_server.size = self.image_byte_size(resolution, image_format=self.img_format)
@@ -170,6 +251,22 @@ class PhantomSocket:
         # make a column break)
         image_bytes = self.data_server.receive_image()
 
+        return image_bytes
+
+    def create_image(self, image_bytes, resolution):
+        """
+        Given the raw image data byte string and the resolution, together with the knowledge about the used transfer
+        format in the attribute "img_format", this method will create a PhantomImage wrapper object for the image
+        (Representation as numpy array)
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        :param image_bytes:
+        :param resolution:
+        :return:
+        """
         # 28.02.2019
         # The image is now also being created from the used transfer format based on the dynamic value saved in the
         # "img_format" attribute.
@@ -195,6 +292,9 @@ class PhantomSocket:
         All image transfer formats with their different byte sizes are implemented now and thus the size of the stream
         is calculated in here accordingly.
 
+        Changed 20.03.2019
+        Added additional explicit conversion of the result into an integer
+
         :param resolution:
         :param image_format:
         :return:
@@ -210,6 +310,11 @@ class PhantomSocket:
         # dict. The format still has to be a valid key to that dict though.
         if image_format_upper in self.IMG_FORMAT_BYTES.keys():
             byte_count = pixel_count * self.IMG_FORMAT_BYTES[image_format_upper]
+
+            # 20.03.2019
+            # As the value of bytes per pixel for the P10 format is not a whole number, we need the possibly float
+            # into an int
+            byte_count = int(byte_count)
         else:
             raise NotImplementedError('Format %s is not supported' % image_format)
 
@@ -228,13 +333,36 @@ class PhantomSocket:
 
         :return:
         """
+        # 19.03.2019
+        # Moved the creation of the command string to a separate method, because the command string is different,
+        # based on the value of the "network_type" attribute of this object. And that difference is none of this methods
+        # concern, this method only has to send the command, whatever that may be.
+        command_string = self.img_command()
+        self.send(command_string)
+        self.logger.debug('Sent img request for grabbing a picture')
+
+    def img_command(self):
+        method_name = "%s_img_command" % self.network_type
+        method = getattr(self, method_name)
+        return method()
+
+    def e_img_command(self):
         # 28.02.2019
         # The "img_format" attribute saves the string token name of the format, for the request to the camera the
         # number representation is needed though.
         img_format_number = ImgFormatsMap.get_number(self.img_format)
-        command_string = 'img {cine:-1, start:1, cnt:1, fmt:%s}' % img_format_number
-        self.send(command_string)
-        self.logger.debug('Sent img request for grabbing a picture')
+        command_string = 'img {cine: -1, start:0, cnt:1, fmt:%s}' % img_format_number
+        return command_string
+
+    def x_img_command(self):
+        mac_address = self.get_hex_mac_address()
+        command_string = 'ximg {cine: -1, start:0, cnt:1, dest:%s}' % mac_address
+        return command_string
+
+    def get_hex_mac_address(self):
+        mac_address = get_mac()
+        mac_string = '%012x' % mac_address
+        return mac_string
 
     def receive_image_response(self):
         """
@@ -266,10 +394,54 @@ class PhantomSocket:
 
         Added 23.02.2019
 
+        Changed 19.03.2019
+        Moved the creation of the new data server object to a separate method.
+
         :return:
         """
-        self.data_server = PhantomDataTransferServer(self.data_ip, self.data_port)
+        # 19.03.2019
+        # Previously the creation of a new data transfer server was done by explicitly using the one class for the
+        # normal network connection. Now this functionality has been outsourced to this new method, which creates
+        # a new object from a class, which is based on the value of the "x_network_flag". But that doesnt influence
+        # the rest of the handling of the data server, as both classes expose the same interface.
+        self.assign_data_transfer_server()
+
+        # Here we can just assume, that a new data server object has been instantiated in the "data_server" variable
         self.data_server.start()
+
+    def assign_data_transfer_server(self):
+        """
+        This method creates a new instance of a data server class, based on whether the client object is using the
+        normal or the 10G network connection (also called x-network).
+        This new instance will then be saved in the "data_server" attribute of this client object.
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        :return:
+        """
+        # Depending of whether this object operates on a 10G or normal network connection, this will either be the
+        # name of the ethernet interface or the IP address of this machine.
+        entry_point = self.data_entry_point()
+        self.data_server = self.data_server_class(entry_point, self.data_port, self.img_format)
+
+    def data_entry_point(self):
+        """
+        Returns the property of this system, which identifies where the phantom is supposed to send its image data to.
+        For a normal network connection, this simply is the IP address, under which this machine is connected to the
+        phantom, but for a x-network connection, it is the name of the ethernet interface on this machine
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        :return:
+        """
+        if self.network_type == 'x':
+            return self.data_interface
+        else:
+            return self.data_ip
 
     def startdata(self):
         """
@@ -634,187 +806,6 @@ class PhantomSocket:
         """
         return response.replace('OK! ', '').replace('Ok!', '')
 
-
-class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
-    """
-    A handler object will be instantiated to handle a new connection to the PhantomDataTransferServer, which is being
-    used to transmit image data from the phantom camera to the control unit.
-    This module will only handle a single connection, which means receiving all the bytes of the image and then
-    returning the complete byte string back to the server, before the handler closes.
-
-    CHANGELOG
-
-    Added 23.02.2019
-    """
-
-    def handle(self):
-        """
-        Main method for handling the data transfer connection.
-        Will handle a single data transmission and then end itself
-
-        CHANGELOG
-
-        Added 23.02.2019
-
-        Changed 26.02.2019
-        Now the program is not expecting the complete amount of pixels to be received, but is also fine with the last
-        100 bytes missing from the last TCP package. The missing bytes will just be padded with zeros. This was
-        necessary as the camera seems to miss a few bytes from time to time.
-
-        :return:
-        """
-        self.server.logger.debug(
-            'New DATA STREAM connection from IP %s and PORT %s',
-            self.client_address[0],
-            self.client_address[1]
-        )
-
-        # To this buffer we will append all the incoming byte data and then, when all the data is received return the
-        # contens of the buffer to the server, so that the PhantomSocket client can access it there
-        buffer = b''
-        while self.server.running:
-            data = self.request.recv(8192).strip()
-            if data and data[0] == '' or len(data) == 0:
-                continue
-
-            if len(buffer) != self.server.size:
-                buffer += data
-                # self.server.logger.debug(len(buffer))
-            if len(buffer) >= self.server.size - 100:
-                # Once the image has been received, the byte string is being passed to the server object by setting
-                # its 'image_bytes' attribute. The the main loop is being ended, thus ending the whole handler thread
-                self.server.image_bytes = buffer + ('\x00' * (self.server.size - len(buffer))).encode('utf-8')
-                self.server.logger.debug('Finished receiving image with %s bytes', len(self.server.image_bytes))
-                break
-
-        self.request.close()
-        self.server.logger.debug('Data Handler shutting down...')
-
-
-class PhantomDataTransferServer(socketserver.ThreadingTCPServer):
-    """
-    This is a threaded server, that is being started, by the main phantom control instance, the PhantomSocket.
-    It listens for incoming connections FROM the phantom camera, because over these secondary channels the camera
-    transmits the raw byte data.
-
-    CHANGELOG
-
-    Added 23.02.2019
-    """
-
-    def __init__(self, ip, port, format='P8', handler_class=PhantomDataTransferHandler):
-        """
-        The constructor
-
-        CHANGELOG
-
-        Added 23.02.2019
-
-        Changed 28.02.2019
-        Added the additional parameter and attribute "format", which defines the used image transfer format.
-
-        :param ip:
-        :param port:
-        :param format:
-        :param handler_class:
-        """
-        # Creating a new logger, whose name is a combination from the module name and the class name of this very class
-        self.log_name = '{}.{}'.format(__name__, self.__class__.__name__)
-        self.logger = logging.getLogger(self.log_name)
-
-        self.ip = ip
-        self.port = port
-
-        self.size = 0
-        self.image_bytes = None
-
-        self.handler_class = handler_class
-
-        super(PhantomDataTransferServer, self).__init__((self.ip, self.port), self.handler_class)
-        self.logger.debug('Created Phantom data stream server at IP %s on PORT %s', self.ip, self.port)
-        self.thread = threading.Thread(target=self.serve_forever)
-        self.running = None
-
-        # 28.02.2019
-        # This attribute will store the string token name of the image transfer format, that is being used to transfer
-        # the images. This is crucially important, because the amount of bytes to be expected from the socket strongly
-        # depends on the format.
-        self.format = format
-
-    # ########################
-    # DATA RECEPTION FUNCTIONS
-    # ########################
-
-    def receive_image(self):
-        """
-        This method will block the execution of the program, until all the image data has been received. If the image
-        data has been received, the internal buffer for the image, which is the "image_bytes" attribute will be cleared
-        for the next image, and the current byte string will be returned
-
-        CHANGELOG
-
-        Added 23.02.2019
-
-        :return:
-        """
-        # Blocking as long as the transmission of the image data hasn't finished
-        while self.image_bytes is None:
-            time.sleep(0.1)
-
-        # Once the transmission is finished the data will be returned. At the same time the internal attribute which
-        # holds the bytes string of the image will be reset to None, so it is ready for the next transmission.
-        image_bytes = self.image_bytes
-        self.image_bytes = None
-        self.logger.debug('Reset internal buffer to %s after image with %s bytes', self.image_bytes, len(image_bytes))
-        return image_bytes
-
-    def set_data_size(self, size):
-        self.size = size
-
-    # ######################################
-    # SOCKET SERVER SERVER RELATED FUNCTIONS
-    # ######################################
-
-    def start(self):
-        """
-        Starts a server Thread and returns Thread object
-
-        CHANGELOG
-
-        Added 21.02.2019
-
-        :return:
-        """
-        # Setting this boolean attribute will make the handlers run
-        self.running = True
-
-        # Actually starting the Thread, which runs the "serve_forever" method of the TCPServer
-        self.thread.daemon = True
-        self.thread.start()
-        self.logger.debug('main thread has started')
-
-    def stop(self):
-        """
-        Stops the server
-
-        CHANGELOG
-
-        Added 21.02.2019
-
-        :return:
-        """
-        # Setting the running boolean value to False. This will stop the handler server
-        self.running = False
-
-        # Shutting down the actual sockets in the server
-        self.server_close()
-        self.shutdown()
-
-        # Ensuring, that the Thread terminates
-        self.thread.join()
-        self.logger.debug('Server shutting down...')
-
-
 # #########################
 # MOCK SERVER FUNCTIONALITY
 # #########################
@@ -877,6 +868,24 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
     # THE COMMAND SPECIFIC HANDLE METHODS
     # ###################################
 
+    def handle_ximg(self, data):
+        data_string = ''.join(data)
+        self.server.logger.debug('XIMG %s', data_string)
+        parameters = parse_parameters(data_string)
+
+        phantom_image = self.server.grab_image(self.server.camera)
+        self.server.logger.debug('created phantom image with resolution %s', phantom_image.resolution)
+
+        # The phantom protocol dictates, that following to a img command, the camera responds with data structure
+        # giving little meta info about the picture to be send including the index of the cine, the picture is from.
+        # The resolution and the used format
+        self.send_img_response(phantom_image)
+
+        sender = RawByteSender(phantom_image.p10(), 'enp1s0', 'c85b76767883', '0000')
+        sender.send()
+
+        self.server.logger.debug('sent raw data')
+
     def handle_img(self, data):
         """
         Handler for the "img" command on the phantom.
@@ -894,8 +903,11 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         self.server.logger.debug('IMG %s', data_string)
         parameters = parse_parameters(data_string)
 
-        # "Grabbing" the image from the actual camera object (It is just a static jpeg in the project folder)
-        phantom_image = self.server.camera.grab_sample()
+        # 18.03.2019
+        # "Grabbing" an image based on the dynamic function object in "server.grab_image". Based on the config of the
+        # mock, this may return different types of images.
+        phantom_image = self.server.grab_image(self.server.camera)
+        self.server.logger.debug('created phantom image with resolution %s', phantom_image.resolution)
 
         # The phantom protocol dictates, that following to a img command, the camera responds with data structure
         # giving little meta info about the picture to be send including the index of the cine, the picture is from.
@@ -941,7 +953,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         # The resolution and the used format
         x_res = phantom_image.resolution[0]
         y_res = phantom_image.resolution[1]
-        response_string = 'OK! { cine:-1, res:%sx%s, fmt:%s}' % (x_res, y_res, image_format)
+        response_string = 'OK! { cine: -1, res:%sx%s, fmt:%s}' % (x_res, y_res, image_format)
         # Sending over the socket
         self.send(response_string)
 
@@ -1140,22 +1152,43 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
     CHANGELOG
 
     Added 20.02.2019
+
+    Changed 18.03.2019
+    Replaced the "127.0.0.1" as ip with "0.0.0.0", which means to let the socket listen on all ip's, including but not
+    being limited to 127.0.0.1. This could come in handy when for example trying to access the mock server from another
+    machine within the same network, if the socket just listened to localhost, that wouldnt work.
     """
 
-    # The mock server always has to operate on localhost
-    IP = '127.0.0.1'
+    # 18.03.2019
+    # The mock server will operate on a fix port, but can be talked to through all IP addresses.
+    IP = '0.0.0.0'
     # A phantom camera control interface is always connected to the
     PORT = 7115
     # Image path
     IMAGE_PATH = os.path.join(FOLDER_PATH, 'sample.jpg')
 
-    def __init__(self, camera_class=PhantomCamera, handler_class=PhantomMockControlInterface):
+    IMAGE_POLICIES = defaultdict(lambda: getattr(PhantomCamera, 'grab_sample'), **{
+        'sample':   getattr(PhantomCamera, 'grab_sample'),
+        'random':   getattr(PhantomCamera, 'grab_random')
+    })
+
+    def __init__(
+            self,
+            camera_class=PhantomCamera,
+            handler_class=PhantomMockControlInterface,
+            image_policy='sample'
+    ):
         """
         The constructor.
 
         CHANGELOG
 
         Added 21.02.2019
+
+        Changed 18.03.2019
+        Added the parameter image policy, which can either be "sample", which will the mock cause to return a sample
+        image from a JPEG over and over again, or "random" which will make it generate random images for each image
+        request.
 
         :param class camera_class:
         """
@@ -1166,6 +1199,15 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         # The ip and port of the mock server are not configurable
         self.ip = self.IP
         self.port = self.PORT
+
+        # 18.03.2019
+        # Saving the image policy to be used.
+        # The "grab_image" field will actually contain a function object. According to the string about the image policy
+        # given it will either contain the "PhantomCamera.grab_sample" or the the "PhantomCamera.grab_random" function.
+        # To actually acquire an image you have to call "self.grab_image(actual_phantom_camera_instance)"
+        self.image_policy = image_policy
+        self.grab_image = self.IMAGE_POLICIES[image_policy]
+        self.logger.debug('Mock server image policy: %s (%s)', image_policy, self.grab_image.__name__)
 
         # The handler and the camera class, on which the mock behaviour is based on can be passed as arguments to ensure
         # loose coupling
@@ -1216,4 +1258,5 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
 
         # Ensuring, that the Thread terminates
         self.thread.join()
+        self.logger.debug('Thread has been stopped')
 

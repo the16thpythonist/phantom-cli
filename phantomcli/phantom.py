@@ -2,6 +2,7 @@
 import os
 
 # third party imports
+import numpy as np
 
 # package imports
 from phantomcli.image import PhantomImage
@@ -282,6 +283,67 @@ class PhantomCamera:
         # Loading a new PhantomImage from the given sample JPEG image
         phantom_image = PhantomImage.from_jpeg(self.SAMPLE_IMAGE_PATH)
         return phantom_image
+
+    def grab_random(self):
+        resolution = self.get_resolution()
+        phantom_image = PhantomImage.random(resolution)
+        return phantom_image
+
+    def get_resolution(self):
+        """
+        Returns the resolution of the camera as a tuple (x, y) specifically
+
+        CHANGELOG
+
+        Added 18.03.2019
+
+        :return:
+        """
+        # The resolution of the Phantom camera is stored in the "defc.res" field in the form of a string which looks
+        # like this "x_res x y_res". The two values being separated by an "x" character
+        resolution_string = self['defc.res']
+        resolution_string = resolution_string.strip()
+        resolution = resolution_string.split('x')
+        return int(resolution[0]), int(resolution[1])
+
+    # ##################
+    # DICT MAGIC METHODS
+    # ##################
+
+    # These methods will implement behaviour which will make any instance of the PhantomCamera accessible like a
+    # python dict object itself.
+
+    def __getitem__(self, item):
+        """
+        Attempts to return the corresponding value of the internal "values" array for the given key "item".
+        If the key does not exists in that dict, will raise a KeyError like usual
+
+        CHANGELOG
+
+        Added 18.03.2019
+
+        :param item:
+        :return:
+        """
+        return self.values[item]
+
+    def __setitem__(self, key, value):
+        """
+        Attempts to set a new value to the given key
+        Will raise a key error if the phantom camera is not defined with an attribute like that
+
+        CHANGELOG
+
+        Added 18.03.2019
+
+        :param key:
+        :param value:
+        :return:
+        """
+        if key in self.values.keys():
+            self.values[key] = value
+        else:
+            raise KeyError('A PhantomCamera has no attribute with name "%s"' % key)
 
     # ##############
     # STATIC METHODS
