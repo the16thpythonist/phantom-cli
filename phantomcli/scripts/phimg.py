@@ -56,6 +56,7 @@ def command(ip, log, dataip, dataport, format, network):
     click.echo('RECEIVED IMAGE FROM PHANTOM')
 
     plt.imshow(phantom_image.array, cmap='gray')
+    click.echo(phantom_image.array)
     plt.show()
 
     phantom_socket.disconnect()

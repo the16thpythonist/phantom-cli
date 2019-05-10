@@ -108,9 +108,11 @@ important attributes of the camera along with the descriptions
 
 - Added documentation to the scripts by adding a helpful "--help" text
 
-### 0.0.0.14 
+### 0.0.0.14 - 10.05.2019
 
 - Added a method for the PhantomImage and PhantomCamera to create random images instead of using always the 
 one static image.
 - Added a parameter to the phmock script to specify a image policy. Either static sample or randomly created image.
+- Fixed the P10 Encoding algorithm, so that all image conversion tests now pass
+
 

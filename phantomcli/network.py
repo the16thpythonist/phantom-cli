@@ -650,6 +650,9 @@ class PhantomSocket:
         Changed 21.02.2019
         Calling the "create_socket" method to make a fresh socket for every new connection.
 
+        Changed 10.05.2019
+        Changed the exception, that is being raised from "ModuleNotFoundError" to Connection error
+
         :return:
         """
         try:
@@ -662,10 +665,10 @@ class PhantomSocket:
 
         except socket.timeout:
             self.logger.error('Connecting to Phantom at %s failed!', self.ip)
-            raise ModuleNotFoundError('There is no socket at {}!'.format(self.ip))
+            raise ConnectionError('There is no socket at {}!'.format(self.ip))
         except ConnectionRefusedError:
             self.logger.error('Connection to Phantom at %s failed!', self.ip)
-            raise ModuleNotFoundError('Connection refused at {}'.format(self.ip))
+            raise ConnectionError('Connection refused at {}'.format(self.ip))
 
     def disconnect(self):
         """
@@ -881,7 +884,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         # The resolution and the used format
         self.send_img_response(phantom_image)
 
-        sender = RawByteSender(phantom_image.p10(), 'enp1s0', 'c85b76767883', '0000')
+        sender = RawByteSender(phantom_image.p10(), 'enp1s0', 'c85b76767883', '88b7')
         sender.send()
 
         self.server.logger.debug('sent raw data')

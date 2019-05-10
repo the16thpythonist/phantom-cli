@@ -109,21 +109,25 @@ class PhantomImage:
 
         :return:
         """
+
         byte_buffer = []
         with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
 
-            values = list(it)
-            for i in range(0, len(values), 3):
-                temp = values[i:i+3]
-                final_value = 0
-                for value in temp:
-                    final_value |= value
-                    final_value <<= 10
-                final_value >>= 10
-                final_value <<= 2
+            # Make two bytes out of it and then just delete the first 6
+            index = 0
+            temp = 0
+            for x in it:
 
-                byte = struct.pack('!L', final_value)
-                byte_buffer.append(byte)
+                temp += int(x)
+                temp <<= 10
+                index += 1
+
+                if index == 4:
+                    temp >>= 10
+                    bytes_string = temp.to_bytes(5, 'big')
+                    byte_buffer.append(bytes_string)
+                    temp = 0
+                    index = 0
 
         return b''.join(byte_buffer)
 
@@ -273,7 +277,7 @@ class PhantomImage:
             'P10':          cls.from_p10
         }
         inverse_resolution = (resolution[1], resolution[0])
-        return _methods[fmt](raw_bytes, inverse_resolution)
+        return _methods[fmt](raw_bytes, resolution)
 
     @classmethod
     def random(cls, resolution):

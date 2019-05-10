@@ -86,7 +86,7 @@ class PhantomDataTransferHandler(socketserver.BaseRequestHandler):
 
 class PhantomXDataTransferHandler(threading.Thread):
 
-    PHANTOM_ETHERNET_PROTOCOL = b'\x00\x00'
+    PHANTOM_ETHERNET_PROTOCOL = b'\x88\xb7'
 
     def __init__(self, server):
         threading.Thread.__init__(self)
@@ -324,7 +324,11 @@ class PhantomXDataTransferServer(socketserver.ThreadingUnixStreamServer, DataTra
 
 class RawByteSender:
 
-    def __init__(self, raw_bytes, interface, destination_address, protocol):
+    OVERHEAD = 0
+    SIZE = 1504
+    HEADER_SIZE = 32
+
+    def __init__(self, raw_bytes, interface, destination_address, protocol, package_size=1500):
         # Creating a new logger, whose name is a combination from the module name and the class name of this very class
         self.log_name = '{}.{}'.format(__name__, self.__class__.__name__)
         self.logger = logging.getLogger(self.log_name)
@@ -340,13 +344,15 @@ class RawByteSender:
 
         self.sent_bytes = 0
 
+        self.package_size = package_size
+
     def send(self):
 
         while self.sent_bytes < self.size:
             package = self.get_package()
             self.socket.sendall(package)
-            self.logger.debug('Sent data: %s (%s)', self.sent_bytes, len(package))
-            time.sleep(0.001)
+            # self.logger.debug('Sent data: %s/%s (%s)', self.sent_bytes, self.size, len(package))
+            # time.sleep(0.001)
 
     def get_package(self):
         header = self.get_header()
@@ -355,14 +361,19 @@ class RawByteSender:
 
     def get_header(self):
         header = struct.pack(
-            '!6s6s2s',
+            '!6s6s2s18s',
             binascii.unhexlify(self.source),
             binascii.unhexlify(self.destination),
-            binascii.unhexlify(self.protocol)
+            binascii.unhexlify(self.protocol),
+            binascii.unhexlify('00')
         )
         return header
 
-    def get_payload(self, size=1492):
+    def get_payload(self):
+        size = self.get_payload_size()
         payload = self.bytes[self.sent_bytes:self.sent_bytes + size]
         self.sent_bytes += size
         return payload
+
+    def get_payload_size(self):
+        return self.package_size - self.HEADER_SIZE

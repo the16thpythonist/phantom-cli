@@ -50,12 +50,12 @@ class TestPhantomSocketBasic(TestCase):
             phantom_socket.connect()
             self.assertTrue(True)
             phantom_socket.disconnect()
-        except ModuleNotFoundError:
+        except ConnectionError:
             self.assertEqual('', 'PhantomSocket could not connect to the mock server!')
 
     def test_exception_when_attempting_to_connect_without_socket(self):
         # Attempting to connect to google, because google most likely doesnt have a listening socket on port 7115,
         # which should cause the exception
         phantom_socket = PhantomSocket(self.GOOGLE_IP)
-        self.assertRaises(ModuleNotFoundError, phantom_socket.connect)
+        self.assertRaises(ConnectionError, phantom_socket.connect)
         phantom_socket.disconnect()
