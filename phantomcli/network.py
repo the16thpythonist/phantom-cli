@@ -869,9 +869,30 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
     # ###################################
 
     def handle_ximg(self, data):
+        """
+        Handler for the "ximg" command on the pahntom
+        This will read an image from the camera object, send a response and then send the image data over the
+        ethernet interface configured for the mock server.
+
+        CHANGELOG
+
+        Added 19.03.2019
+
+        Changed 10.05.2019
+        Using the function "send_images_x" instead of doing all the network operations in this method.
+        Also added support for actually sending as many images as specified in the image request
+
+        :param data:
+        :return:
+        """
         data_string = ''.join(data)
         self.server.logger.debug('XIMG %s', data_string)
+
+        # 10.05.2019
+        # Parsing the commands for the call
         parameters = parse_parameters(data_string)
+        destination = parameters['dest']
+        count = parameters['cnt']
 
         phantom_image = self.server.grab_image(self.server.camera)
         self.server.logger.debug('created phantom image with resolution %s', phantom_image.resolution)
@@ -881,8 +902,9 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         # The resolution and the used format
         self.send_img_response(phantom_image)
 
-        sender = RawByteSender(phantom_image.p10(), 'enp1s0', 'c85b76767883', '88b7')
-        sender.send()
+        # 10.05.2019
+        # Sending as many images as specified by the command request
+        self.send_images_x(phantom_image, destination, count)
 
         self.server.logger.debug('sent raw data')
 
@@ -918,44 +940,6 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         self.server.logger.debug('Sending image now')
         self.send_image(phantom_image, parameters['fmt'])
         self.server.logger.debug('finished sending image')
-
-    def send_image(self, phantom_image, image_format):
-        """
-        Sends the actual image as byte string over the data client socket
-
-        CHANGELOG
-
-        Added 23.02.2019
-
-        :param phantom_image:
-        :return:
-        """
-        image_bytes = phantom_image.to_transfer_format(image_format)
-        self.server.logger.debug('Sending image with size %s bytes', len(image_bytes))
-        self.data_client.sendall(image_bytes)
-
-    def send_img_response(self, phantom_image, image_format=272):
-        """
-        Sends the response to the "img" command over the main control connection.
-        This response contains the index of the cine, the image is from, the resolution of the image and the transfer
-        format used.
-
-        CHANGELOG
-
-        Added 23.02.2019
-
-        :param phantom_image:
-        :param image_format:
-        :return:
-        """
-        # The phantom protocol dictates, that following to a img command, the camera responds with data structure
-        # giving little meta info about the picture to be send including the index of the cine, the picture is from.
-        # The resolution and the used format
-        x_res = phantom_image.resolution[0]
-        y_res = phantom_image.resolution[1]
-        response_string = 'OK! { cine: -1, res:%sx%s, fmt:%s}' % (x_res, y_res, image_format)
-        # Sending over the socket
-        self.send(response_string)
 
     def handle_startdata(self, data):
         """
@@ -1034,6 +1018,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
             self.send_key_error(structure_name)
 
     def handle_trig(self, data):
+        self.server.logger.info("TRIG")
         self.send_ok()
 
     def handle_rec(self, data):
@@ -1042,9 +1027,89 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
     def handle_bye(self, data):
         self.send_ok()
 
-    # #############################
+    # BUSINESS LOGIC METHODS
+    # ----------------------
+
+    def send_images_x(self, phantom_image, destination_mac, count):
+        """
+        Sends as many images as specified by "count" over the ethernet interface to the destination MAC address
+
+        CHANGELOG
+
+        Added 10.05.2019
+
+        :param phantom_image:
+        :param destination_mac:
+        :param count:
+        :return:
+        """
+        for i in range(count):
+            self.send_image_x(phantom_image, destination_mac)
+
+    def send_image_x(self, phantom_image, destination_mac):
+        """
+        Sends the given phantom image over the 10G connection using raw ethernet frames to the machine specified by
+        "destination_mac"
+
+        CHANGELOG
+
+        Added 10.05.2019
+
+        :param phantom_image:
+        :param destination_mac:
+        :return:
+        """
+        # The interface identifier was set as a configuration of the MockServer object and can be obtained from it
+        interface = self.server.interface
+
+        # The protocol identifier for ethernet frames sent by a phantom camera can also be acquired from the mock
+        # server object. It is defined as a constant, because it is not configurable. All phantom cameras use the same
+        protocol = self.server.ETHERNET_PROTOCOL
+
+        sender = RawByteSender(phantom_image.p10(), interface, destination_mac, protocol)
+        sender.send()
+        self.server.logger.debug("Sending image as raw ethernet frames")
+
+    def send_image(self, phantom_image, image_format):
+        """
+        Sends the actual image as byte string over the data client socket
+
+        CHANGELOG
+
+        Added 23.02.2019
+
+        :param phantom_image:
+        :return:
+        """
+        image_bytes = phantom_image.to_transfer_format(image_format)
+        self.server.logger.debug('Sending image with size %s bytes', len(image_bytes))
+        self.data_client.sendall(image_bytes)
+
     # ADDITIONAL NETWORK OPERATIONS
-    # #############################
+    # -----------------------------
+
+    def send_img_response(self, phantom_image, image_format=272):
+        """
+        Sends the response to the "img" command over the main control connection.
+        This response contains the index of the cine, the image is from, the resolution of the image and the transfer
+        format used.
+
+        CHANGELOG
+
+        Added 23.02.2019
+
+        :param phantom_image:
+        :param image_format:
+        :return:
+        """
+        # The phantom protocol dictates, that following to a img command, the camera responds with data structure
+        # giving little meta info about the picture to be send including the index of the cine, the picture is from.
+        # The resolution and the used format
+        x_res = phantom_image.resolution[0]
+        y_res = phantom_image.resolution[1]
+        response_string = 'OK! { cine: -1, res:%sx%s, fmt:%s}' % (x_res, y_res, image_format)
+        # Sending over the socket
+        self.send(response_string)
 
     def send_key_error(self, key):
         """
@@ -1115,11 +1180,11 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         message_encoded = '{}\r\n'.format(message).encode('utf-8')
         self.request.sendall(message_encoded)
 
-    # ###############
-    # UTILITY METHODS
-    # ###############
+    # HELPER METHODS
+    # --------------
 
-    def create_response_list(self, structure):
+    @classmethod
+    def create_response_list(cls, structure):
         """
         Given the value of a phantom attribute (Whatever the phantom object returns for the get method. Can be anything
         like int, string or even list already) this method converts it into a list of strings (the format needed to
@@ -1158,25 +1223,49 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
     being limited to 127.0.0.1. This could come in handy when for example trying to access the mock server from another
     machine within the same network, if the socket just listened to localhost, that wouldnt work.
     """
+    # CONSTANT DEFINITIONS
+    # --------------------
 
     # 18.03.2019
     # The mock server will operate on a fix port, but can be talked to through all IP addresses.
-    IP = '0.0.0.0'
+    DEFAULT_IP = '0.0.0.0'
+
     # A phantom camera control interface is always connected to the
-    PORT = 7115
+    DEFAULT_PORT = 7115
+
+    # 10.05.2019
+    # This string defines the name of a network interface. This interface will be used to send the raw ethernet frames
+    DEFAULT_INTERFACE = "enp1s0"
+
+    # 10.05.2019
+    # This string defines the protocol identifier sent with every ethernet frame. This value in particular is the
+    # protocol ID a phantom camera uses, when transmitting data over a 10G connection.
+    ETHERNET_PROTOCOL = '88b7'
+
     # Image path
     IMAGE_PATH = os.path.join(FOLDER_PATH, 'sample.jpg')
 
+    # 20.3.2019
+    # Based on the string keyword given as a parameter a different function will be used to grab the image from
+    # the camera object.
+    # One grab function loads a jpeg sample image and returns that.
+    # The other grab function generates a random noise image and returns that.
     IMAGE_POLICIES = defaultdict(lambda: getattr(PhantomCamera, 'grab_sample'), **{
         'sample':   getattr(PhantomCamera, 'grab_sample'),
         'random':   getattr(PhantomCamera, 'grab_random')
     })
 
+    # THE CONSTRUCTOR
+    # ---------------
+
     def __init__(
             self,
             camera_class=PhantomCamera,
             handler_class=PhantomMockControlInterface,
-            image_policy='sample'
+            image_policy='sample',
+            ip=DEFAULT_IP,
+            port=DEFAULT_PORT,
+            interface=DEFAULT_INTERFACE
     ):
         """
         The constructor.
@@ -1190,15 +1279,21 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         image from a JPEG over and over again, or "random" which will make it generate random images for each image
         request.
 
+        Changed 10.05.2019
+        Added the ip, port and interface parameters to make the network behaviour of the mock configurable
+
         :param class camera_class:
         """
         # Creating a new logger, whose name is a combination from the module name and the class name of this very class
         self.log_name = '{}.{}'.format(__name__, self.__class__.__name__)
         self.logger = logging.getLogger(self.log_name)
 
-        # The ip and port of the mock server are not configurable
-        self.ip = self.IP
-        self.port = self.PORT
+        # 10.05.2019
+        # The network behaviour of the mock is defined by the ip address on which it operates, the port on which it
+        # listens and for the 10G connectivity the interface identifier to which the raw ethernet frames will be sent
+        self.ip = ip
+        self.port = port
+        self.interface = interface
 
         # 18.03.2019
         # Saving the image policy to be used.
@@ -1220,6 +1315,9 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
 
         self.thread = threading.Thread(target=self.serve_forever)
         self.running = None
+
+    # MANAGEMENT FUNCTIONS
+    # --------------------
 
     def start(self):
         """

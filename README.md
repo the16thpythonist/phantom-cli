@@ -120,5 +120,6 @@ one static image.
 - Fixed, that images were being displayed sideways
 - Fixed receiving of images using the 10G interface
 - Added Documentation to the "data.py" module
+- Added correct behaviour to the ximg handling of the mock, when multiple frames are requested
 
 
