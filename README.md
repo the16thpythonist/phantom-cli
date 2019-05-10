@@ -115,4 +115,10 @@ one static image.
 - Added a parameter to the phmock script to specify a image policy. Either static sample or randomly created image.
 - Fixed the P10 Encoding algorithm, so that all image conversion tests now pass
 
+### 0.0.0.15 - 10.05.2019
+
+- Fixed, that images were being displayed sideways
+- Fixed receiving of images using the 10G interface
+- Added Documentation to the "data.py" module
+
 

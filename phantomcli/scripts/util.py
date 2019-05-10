@@ -52,3 +52,6 @@ log_help = "The level of logging to be displayed in the console output. The opti
            "error messages, 'INFO' for log messages marking important steps in the program execution or 'DEBUG' " \
            "for displaying all log messages. Default is 'ERROR'"
 
+xnetwork_help = "Setting this flag will enable the transmission using the 10G interface. Make sure, that you are " \
+                "indeed connected using the 10G ethernet interface before setting this flag."
+

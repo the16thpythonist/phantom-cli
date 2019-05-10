@@ -13,17 +13,17 @@ import matplotlib.pyplot as plt
 # package imports
 from phantomcli.network import PhantomSocket
 from phantomcli.scripts.util import logging_config, logging_format, formats
-from phantomcli.scripts.util import log_help, format_help
+from phantomcli.scripts.util import log_help, format_help, xnetwork_help
 
 
 @click.command('phget')
-@click.option('--network', '-n', default='e', help='')
+@click.option('--xnetwork', '-x', is_flag=True, help=xnetwork_help)
 @click.option('--format', '-f', default='P16', help=format_help)
 @click.option('--dataport', '-p', default=60000)
 @click.option('--dataip', '-i', default='127.0.0.1')
 @click.option('--log', '-l', default='ERROR', help=log_help)
 @click.argument('ip')
-def command(ip, log, dataip, dataport, format, network):
+def command(ip, log, dataip, dataport, format, xnetwork):
     """
     Given the IP ADDRESS of the camera, this will open a secondary channel to the camera to receive the raw data of
     the current frame. Once the data has been transmitted completely a new window will open, displaying the image from
@@ -33,6 +33,11 @@ def command(ip, log, dataip, dataport, format, network):
         format=logging_format,
         level=logging_config[log]
     )
+
+    if xnetwork:
+        network = "x"
+    else:
+        network = "e"
 
     # Creating the phantom socket to communicate with the camera
     phantom_socket = PhantomSocket(

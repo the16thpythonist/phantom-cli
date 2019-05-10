@@ -1,7 +1,3 @@
-# TODO: Change back cine count
-# TODO: Intergrate 10G protocol
-# TODO: Research why bytes could be missing.
-
 
 # standard library imports
 import socket
@@ -45,6 +41,9 @@ class PhantomSocket:
     Added 20.02.2019
     """
 
+    # CONSTANT DEFINITIONS
+    # --------------------
+
     DEFAULT_PORT = 7115
 
     DUMMY_COMMAND = b'get info.name'
@@ -64,10 +63,7 @@ class PhantomSocket:
         'x':        PhantomXDataTransferServer
     })
 
-    # ######################
     # IMAGE TRANSFER FORMATS
-    # ######################
-
     # This dict assigns the byte size to each possible image transfer format. The byte size is an integer of how many
     # bytes each pixel is made up of in the corresponding raw data stream.
     IMG_FORMAT_BYTES = {
@@ -219,6 +215,7 @@ class PhantomSocket:
         :param resolution:
         :return:
         """
+        resolution = (resolution[1], resolution[0])
         # This method will handle the necessary interactions with the data server to actually receive the raw byte
         # string representing the image from the data server's connection to the camera
         image_bytes = self.receive_image_bytes(resolution)
