@@ -33,6 +33,7 @@ setup(
                 'ph-getall=phantomcli.scripts.phgetall:command',
                 'ph-set=phantomcli.scripts.phset:command',
                 'ph-img=phantomcli.scripts.phimg:command',
+                'ph-discover=phantomcli.scripts.phdiscover:command'
             ]
     },
     python_requires='~=3.5',

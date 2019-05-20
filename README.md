@@ -122,4 +122,15 @@ one static image.
 - Added Documentation to the "data.py" module
 - Added correct behaviour to the ximg handling of the mock, when multiple frames are requested
 
+### 0.0.0.16 - 20.05.2019
 
+- Added full support for the discovery protocol:
+    - Mock: The mock will now additionally start a UDP server listening on the port 7380 for incoming discovery 
+    requests. If a valid request has been received it will respond with a string containing the control port on which 
+    it is listening, the "info.hwver" value and the serial number of the mock camera model. Everything as specified for 
+    the PH16 camera protocol
+    - PhantomSocket: Added an additional method "discover" which will sent out a discovery request broadcast into the 
+    network and then return a list of dicts. One dict containing all the relevant info for one received response to the 
+    discovery request 
+- Added an additional command line tool "ph-discover", which will sent a 
+discovery request into the network

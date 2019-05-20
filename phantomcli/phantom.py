@@ -25,9 +25,8 @@ class PhantomCamera:
     Added 21.02.2019
     """
 
-    # #########################
     # SENSOR INFORMATION FIELDS
-    # #########################
+    # -------------------------
 
     SENSOR_INFO_DESCRIPTIONS = {
         'info.sensor':              'Integer Type of sensor used',
@@ -207,11 +206,19 @@ class PhantomCamera:
 
     SAMPLE_IMAGE_PATH = os.path.join(FOLDER_PATH, 'sample.jpg')
 
+    # NETWORK RELATED ADDITIONAL FIELD
+    # --------------------------------
+
+    DEFAULT_CONTROL_PORT = 7115
+
     # ###########
     # THE METHODS
     # ###########
 
-    def __init__(self):
+    def __init__(
+            self,
+            control_port: int = DEFAULT_CONTROL_PORT
+    ):
         """
         The constructor
 
@@ -227,6 +234,9 @@ class PhantomCamera:
         # 01.03.2019
         # So the values can be modified by a set command
         self.values = self.DEFAULTS.copy()
+
+        # 20.05.2019
+        self.port = control_port
 
     # #################
     # CAMERA OPERATIONS

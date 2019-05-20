@@ -12,6 +12,9 @@ import binascii
 
 from collections import defaultdict
 from uuid import getnode as get_mac
+# 20.05.2019
+# Starting to use typing
+from typing import Any, ByteString, Dict, List, Union, Tuple
 
 # third party libraries
 
@@ -30,6 +33,16 @@ logger = logging.getLogger(__name__)
 # It is important to configure this, because if this isnt set it could be, that running a program, which uses this
 # module twice in a row, it can happen, that the socket address is not properly released and it wont work.
 socketserver.ThreadingTCPServer.allow_reuse_address = True
+
+
+class PhantomDiscoveryResponseServer(socketserver.UDPServer):
+
+    DEFAULT_IP = 'localhost'
+    DEFAULT_PORT = 10100
+
+    def __init__(self):
+
+        super(PhantomDiscoveryResponseServer, self).__init__()
 
 
 class PhantomSocket:
@@ -51,6 +64,22 @@ class PhantomSocket:
     RESPONSE_TERMINATION = '\r\n'
 
     RESPONSE_SEPARATOR = r'\r\n'
+
+    # 20.05.2019
+    # The socket, which will send the discovery request will be a UDP socket bound to localhost and the port 10101
+    # (This is not a specific port. It could be any other free port)
+    DISCOVERY_IP = 'localhost'
+    DISCOVERY_PORT = 10101
+    # This is the address, that has to be used to send the discovery request. It will have to be a broadcast to reach
+    # all the phantom cameras present in the network. All phantom cameras listen on port 7380 for discovery requests.
+    DISCOVERY_BROADCAST_IP = '<broadcast>'
+    DISCOVERY_BROADCAST_PORT = 7380
+    DISCOVERY_BROADCAST_ADDRESS = (DISCOVERY_BROADCAST_IP, DISCOVERY_BROADCAST_PORT)
+    # This is the string, that has to be sent as a valid request
+    DISCOVERY_REQUEST = b'phantom?'
+    # This is the time we are going to wait for all discovery responses to arrive at our destination. After that we
+    # stop listening and return the results. (In seconds)
+    DISCOVERY_TIMEOUT = 10
 
     # 19.03.2019
     # This is a mapping, for which the value of the network_type is used as the input and according to the boolean
@@ -154,9 +183,8 @@ class PhantomSocket:
     # INITIALIZATION/CONFIGURATION METHODS
     # ####################################
 
-    # ######################################
     # IMAGE ACQUISITION OPERATION ON PHANTOM
-    # ######################################
+    # --------------------------------------
 
     def img(self):
         """
@@ -378,9 +406,8 @@ class PhantomSocket:
 
         return response_parameters
 
-    # ################################
     # DATA STREAM OPERATION ON PHANTOM
-    # ################################
+    # --------------------------------
 
     def start_data_server(self):
         """
@@ -475,9 +502,8 @@ class PhantomSocket:
         self.send(command_string)
         self.logger.debug('Sent start data request on port %s to phantom', port)
 
-    # #########################
     # SET OPERATIONS ON PHANTOM
-    # #########################
+    # -------------------------
 
     def set(self, structure_name, value):
         """
@@ -525,9 +551,8 @@ class PhantomSocket:
         response_list = self.get_response_list(response_string)
         return response_list
 
-    # #########################
     # GET OPERATIONS ON PHANTOM
-    # #########################
+    # -------------------------
 
     def get_all(self):
         """
@@ -632,9 +657,8 @@ class PhantomSocket:
         else:
             return [response_string]
 
-    # ####################################
     # BASIC NETWORK / SOCKET FUNCTIONALITY
-    # ####################################
+    # ------------------------------------
 
     def connect(self):
         """
@@ -785,21 +809,193 @@ class PhantomSocket:
         self.logger.debug('Pinged %s and received response "%s"', self.ip, response)
         return response == 0
 
-    # ###############################
-    # OBJECT PROPERTIES GETTER/SETTER
-    # ###############################
+    # DISCOVERY METHODS
+    # -----------------
 
-    # ###############
+    @classmethod
+    def discover(cls):
+        """
+        This method can be used to sent a discovery broadcast into the network to which all the phantom cameras will
+        respond. It will return a list of dicts, where each dict contains the information from one of the cameras
+        responses.
+        The dicts contain the following keys:
+        - protocol:     A string defining the protocol used by the phantom camera (always P16)
+        - ip:           A string containing the IP address of the camera in the network
+        - port:         A string containing the int port, which the camera uses to accept control connections
+        - hwver:        A string identifier for the hardware version of the camera
+        - serial:       A string containing the int serial number of the camera
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        # This method will create a socket object, that is suitable for the discovery process. It will be a
+        # socket for UDP, with broadcasting enabled and the correct timeout set.
+        discovery_socket = cls.get_discovery_socket()
+
+        # This method will simply send the discovery message to all devices on the network to the correct
+        # port at which the phantom cameras will be listening
+        cls.send_discovery_request(discovery_socket)
+
+        # This method will listen for the response packages for a certain time and then return a list with
+        # tuples, where the first item is the byte string content of the package and the second one the
+        # address tuple of the device (=the camera) that sent it.
+        responses = cls.receive_discovery_responses(discovery_socket)
+
+        # Here we parse the content of the response strings into more accessible dicts, which contain key value
+        # combination for every bit of into contained in the response messages. A list of such dicts will
+        # then be returned.
+        camera_dicts = []
+        for response in responses:
+            camera_dict = cls.parse_discovery_response(response[0].decode('utf-8'), response[1])
+            camera_dicts.append(camera_dict)
+
+        return camera_dicts
+
+    @classmethod
+    def parse_discovery_response(
+            cls,
+            response: str,
+            address: Tuple[str, int]
+    ) -> Dict[str, str]:
+        """
+        Given the string content "response" of the response to the discovery request and the address tuple for whoever
+        sent that response, this method will parse all the information in the response string and return a dict with
+        this information more easily accessible.
+        The dict will contain the following keys:
+        - protocol:     A string defining the protocol used by the phantom camera (always P16)
+        - ip:           A string containing the IP address of the camera in the network
+        - port:         A string containing the int port, which the camera uses to accept control connections
+        - hwver:        A string identifier for the hardware version of the camera
+        - serial:       A string containing the int serial number of the camera
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param response:
+        :param address:
+        :return:
+        """
+        response_split = response.split(' ')
+        camera_dict = {
+            'protocol':     response_split[0],
+            'port':         response_split[1],
+            'hwver':        response_split[2],
+            'serial':       response_split[3],
+            'ip':           address[0]
+        }
+        return camera_dict
+
+    @classmethod
+    def receive_discovery_responses(cls, discovery_socket: socket.socket):
+        """
+        Given the socket to be used for the discovery. This method uses that socket to receive the response packets,
+        sent out by the various phantom cameras in the network. The socket will only listen for as many seconds as
+        defined in DISCOVERY_TIMEOUT though before returning a list of all responses.
+        The list is a list of tuples, where each tuple is for one received response. The first item being the response
+        text (byte string) and the second item being the address tuple for the sender of the response
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param discovery_socket:
+        :return:
+        """
+        response_list = []
+        while True:
+            # In every iteration of this loop the socket tries to receive the response of yet another phantom camera in
+            # the network. If there actually is a response, it is checked for its validity and then added to the list
+            # of all responses. If the socket cannot receive a new response for some time, it will raise a timeout and
+            # thus end the loop and this method.
+            try:
+                data, address = discovery_socket.recvfrom(1024)
+                if cls.is_valid_discovery_response(data):
+                    response_tuple = (data, address)
+                    response_list.append(response_tuple)
+            except socket.timeout:
+                break
+
+        return response_list
+
+    @classmethod
+    def is_valid_discovery_response(cls, data: ByteString) -> bool:
+        """
+        Given the byte string, that has been extracted from the response package to the discovery request, this method
+        will return true, if the response is valid and false otherwise.
+        A response will only be accounted as valid, if it states to be using the PH16 protocol, on which this entire
+        class is based on.
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param data:
+        :return:
+        """
+        # The response is only valid (in the sense, that we want to communicate with that camera) if the camera,
+        # that sent it uses the PH16 protocol, on which this entire class is based upon
+        return b'PH16' in data
+
+    @classmethod
+    def send_discovery_request(cls, discovery_socket: socket.socket):
+        """
+        Given the socket to be used for the discovery, this method uses the socket to send the request string to all
+        devices on the network
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param discovery_socket:
+        :return:
+        """
+        discovery_socket.sendto(cls.DISCOVERY_REQUEST, cls.DISCOVERY_BROADCAST_ADDRESS)
+
+    @classmethod
+    def get_discovery_socket(cls) -> socket.socket:
+        """
+        This method will create a new socket object and configure it so it can be used as the socket for the phantom
+        camera discovery. This means making it a UDP socket, enabling broadcasting, setting the correct timeout and
+        binding it to the correct port
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        # The socket is configured to use the IP protocol (AF_INET) and the datagram/UDP on top of that (SOCK_DGRAM)
+        discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        # Since we want to use this socket to send a broadcast message, we have to set the according configuration
+        # flag to true (1) first
+        discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        # We are then going to bind the socket to the IP and PORT specified as class variables
+        discovery_socket.bind((cls.DISCOVERY_IP, cls.DISCOVERY_PORT))
+        # We are setting a timout for the socket. Because after the broadcast has been sent, we use it to receive the
+        # responses from the phantom cameras. But we cannot wait forever, so we will wait only this amount of seconds
+        discovery_socket.settimeout(cls.DISCOVERY_TIMEOUT)
+
+        return discovery_socket
+
     # UTILITY METHODS
-    # ###############
+    # ---------------
 
-    def clean_response(self, response):
+    @classmethod
+    def clean_response(cls, response):
         """
         Given a response string from the phantom, this method will remove the "OK!" string at the front.
 
         CHANGELOG
 
         Added 23.02.2019
+
+        Changed 20.05.2019
+        Made it a classmethod
 
         :param response:
         :return:
@@ -1209,6 +1405,211 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 # ##################
 
 
+class PhantomMockDiscoveryHandler(socketserver.DatagramRequestHandler):
+    """
+    The phantom mock disccovery server listens for new incoming discovery requests. Whenever one such UDP package has
+    been received, it is not handled by the server instance directly. Instead for every request a new Handler class is
+    started within its own thread.
+    This means instances of this class are responsible of properly responding to a phantom discovery request. They do
+    it by first checking if the request string is valid and if it is responding with a string, that contains info about
+    the protocol that is used, the port at which the mock listens for control connections, the hardware version and the
+    serial number of the mock camera object
+
+    CHANGELOG
+
+    Added 20.05.2019
+    """
+
+    VALID_REQUEST_STRING = b'phantom?'
+    RESPONSE_STRING_TEMPLATE = "PH16 {port} {hwver} {serial}"
+
+    def handle(self):
+        """
+        This method will be called by the server once a new incoming connection needs to be handled
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        self.server.logger.info(
+            "New DISCOVERY request from IP %s and PORT %s. CONTENT %s",
+            self.client_address[0],
+            self.client_address[1],
+            self.request[0]
+        )
+
+        if self.is_valid_request():
+            self.send_response()
+
+    def is_valid_request(self):
+        """
+        Returns true if the data sent with the request this handler was dispatched to process contains a valid request
+        string and false otherwise
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        request_string = self.request[0].strip(b'\x00')
+        return request_string == self.VALID_REQUEST_STRING
+
+    def create_response_string(self):
+        """
+        Creates a new response string from the "camera" object of the discovery server instance, from which this
+        handler has been dispatched from in the first place. The result string contains the port on which the camera
+        accepts control connections, the hardware version and the serial number of the camera.
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        phantom_camera: PhantomCamera = self.server.camera
+        response_string = self.RESPONSE_STRING_TEMPLATE.format(
+            port=phantom_camera.port,
+            hwver=phantom_camera['info.hwver'],
+            serial=phantom_camera['info.serial']
+        )
+        return response_string
+
+    def send_response(self):
+        """
+        Creates a new response string according to the "camera" object of the discovery server instance, from
+        which this handler was dispatched and sends it back to the client address, that sent the discovery request
+        in the first place.
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :return:
+        """
+        sock = self.request[1]
+
+        # This method creates a new response string according to the RESPONSE_STRING_TEMPLATE using the values of
+        # the "camera" object of the discovery server.
+        response_string = self.create_response_string()
+        response_byte_string = response_string.encode('utf-8')
+
+        # Sending the response back to whoever requested
+        sock.sendto(response_byte_string, self.client_address)
+        self.server.logger.debug(
+            'Sent discovery response "%s" to IP %s PORT %s',
+            response_string,
+            self.client_address[0],
+            self.client_address[1]
+        )
+
+
+class PhantomMockDiscoveryServer(socketserver.ThreadingUDPServer):
+    """
+    This is a UDP server. It can be started and will then listen to incoming UDP packages on the port 7380. Phantom
+    cameras use UDP servers for the discovery protocol. If a UDP package with the message "phantom?" is received a
+    response will be sent containing the IP address serial number and such identifying a phantom camera to the the one
+    having sent the request.
+
+    CHANGELOG
+
+    Added 20.05.2019
+    """
+
+    # On default, the discovery server will obviously run on the very machine, on which the mock is running.
+    DEFAULT_IP = "localhost"
+
+    # All phantom cameras check for discovery request on the port 7380. It is not configurable
+    DISCOVERY_PORT = 7380
+
+    # CONSTRUCTOR
+    # -----------
+
+    def __init__(
+            self,
+            camera: PhantomCamera,
+            ip: str = DEFAULT_IP,
+            handler_class: Any = PhantomMockDiscoveryHandler
+    ):
+        """
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param camera:
+        :param ip:
+        :param handler_class:
+        """
+        # Creating a new logger, whose name is a combination from the module name and the class name of this very class
+        self.log_name = '{}.{}'.format(__name__, self.__class__.__name__)
+        self.logger = logging.getLogger(self.log_name)
+
+        # The network stuff
+        self.ip = ip
+        self.port = self.DISCOVERY_PORT
+        self.handler_class = handler_class
+
+        self.camera = camera
+
+        # Here we actually link the server object to the given ip and port
+        super(PhantomMockDiscoveryServer, self).__init__((self.ip, self.port), self.handler_class)
+
+        self.running = False
+        # This might cause confusion: The server itself is already a "Threading" UDP server, but this only means,
+        # that for each connection the server accepts the handler for that connection is started as a new thread.
+        # The server itself would normally run by calling the server_forever blocking(!) function in the main
+        # program execution. But here we are putting that function into another thread, so that the main server, which
+        # accepts the incoming connections runs in a thread as well.
+        self.thread = threading.Thread(target=self.serve_forever)
+
+        self.logger.debug("Created new MockDiscoveryServer at IP %s and PORT %s", self.ip, self.port)
+
+    # MANAGEMENT FUNCTIONS
+    # --------------------
+
+    def start(self):
+        """
+        Starts a server Thread and returns Thread object
+
+        CHANGELOG
+
+        Added 21.02.2019
+
+        :return:
+        """
+        # Setting this boolean attribute will make the handlers run
+        self.running = True
+
+        # Actually starting the Thread, which runs the "serve_forever" method of the TCPServer
+        self.thread.daemon = True
+        self.thread.start()
+        self.logger.debug('main thread has started')
+
+    def stop(self):
+        """
+        Stops the server
+
+        CHANGELOG
+
+        Added 21.02.2019
+
+        :return:
+        """
+        # Setting the running boolean value to False. This will stop the handler server
+        self.running = False
+
+        # Shutting down the actual sockets in the server
+        self.shutdown()
+        self.server_close()
+
+        # Ensuring, that the Thread terminates
+        self.thread.join()
+        self.logger.debug('Thread has been stopped')
+
+
 class PhantomMockServer(socketserver.ThreadingTCPServer):
     """
     This wraps the socket functionality for simulating a phantom operating on the IP "127.0.0.1" (localhost) and the
@@ -1265,7 +1666,8 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
             image_policy='sample',
             ip=DEFAULT_IP,
             port=DEFAULT_PORT,
-            interface=DEFAULT_INTERFACE
+            interface=DEFAULT_INTERFACE,
+            dicovery_server_class: Any = PhantomMockDiscoveryServer
     ):
         """
         The constructor.
@@ -1310,6 +1712,12 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         self.camera_class = camera_class
         self.camera = self.camera_class()
 
+        # 20.05.2019
+        # Here we start the discovery server. The phantom camera features a discovery protocol, where it listens for
+        # UDP packages on port 7380 and a specific string. If such a package is received it will respond with a string
+        # containing info about the camera. This server Thread implements this behaviour
+        self.discovery_server = PhantomMockDiscoveryServer(self.camera, self.ip)
+
         super(PhantomMockServer, self).__init__((self.ip, self.port), self.handler_class)
         self.logger.debug('Created MockServer bound to IP %s and PORT %s', self.ip, self.port)
 
@@ -1327,6 +1735,9 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
 
         Added 21.02.2019
 
+        Changed 20.05.2019
+        Added a statement, that starts the discovery server as well
+
         :return:
         """
         # Setting this boolean attribute will make the handlers run
@@ -1337,6 +1748,10 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         self.thread.start()
         self.logger.debug('main thread has started')
 
+        # 20.05.2019
+        # The discovery server also needs to be started, it is a Thread as well
+        self.discovery_server.start()
+
     def stop(self):
         """
         Stops the server
@@ -1344,6 +1759,9 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         CHANGELOG
 
         Added 21.02.2019
+
+        Changed 20.05.2019
+        Added a statement to stop the discovery server as well, once the main mock server stops
 
         :return:
         """
@@ -1357,4 +1775,9 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         # Ensuring, that the Thread terminates
         self.thread.join()
         self.logger.debug('Thread has been stopped')
+
+        # 20.05.2019
+        # The discovery server also needs to be stopped
+        self.discovery_server.stop()
+
 

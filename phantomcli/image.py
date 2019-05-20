@@ -2,6 +2,8 @@
 import struct
 import logging
 
+from typing import ByteString, Tuple
+
 # third party imports
 import numpy as np
 import imageio
@@ -314,3 +316,74 @@ class PhantomImage:
         downscaled_array /= np.max(array)
         downscaled_array *= 2**(bits - 1)
         return downscaled_array
+
+
+class PhantomMedia:
+    """
+    This class/object will act as the main point of interaction with the phantom imaging module.
+
+    CHANGELOG
+
+    Added 20.05.2019
+    """
+
+    def __init__(self):
+        pass
+
+    # IMAGE RELATED METHODS
+    # ---------------------
+
+    @classmethod
+    def create_phantom_image(
+            cls,
+            data: ByteString,
+            resolution: Tuple[int, int],
+            transfer_format: str = "P16"
+    ) -> PhantomImage:
+        """
+        Creates a new PhantomImage object from the given data using the given identifier string for the used format to
+        correctly interpret the bytes as pixels and the given resolution to correctly set the linebreaks for the pixels
+        to create a valid image
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param data:
+        :param resolution:
+        :param transfer_format:
+        :return:
+        """
+        # Here we simply create a new Phantom image object using the "from_transfer_format" class method the class
+        # overs to directly create from raw data.
+        phantom_image = PhantomImage.from_transfer_format(transfer_format, data, resolution)
+        return phantom_image
+
+    @classmethod
+    def load_phantom_image(
+            cls,
+            path: str,
+            resolution: Tuple[int, int],
+            transfer_format: str = "P16"
+    ) -> PhantomImage:
+        """
+        Creates a new PhantomImage object by reading the file with the given file path and interpreting the contents as
+        a raw bytes string, using the given identifier string for the used format to correctly interpret the bytes as
+        pixels and the given resolution to correctly set the linebreaks for the pixels to create a valid image.
+
+        CHANGELOG
+
+        Added 20.05.2019
+
+        :param path:
+        :param resolution:
+        :param transfer_format:
+        :return:
+        """
+        # First we will load the binary data from the given path and then we will calls the method to create a new
+        # phantom image on the raw data
+        with open(path, mode="rb") as file:
+            data = file.read()
+            phantom_image = cls.create_phantom_image(data, resolution, transfer_format)
+
+        return phantom_image
