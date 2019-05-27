@@ -38,10 +38,6 @@ The mock is still far from being a perfect emulation of a real camera, as it lac
 
 - Upon receiving possibly incorrect input, the returned error message is not reflective of what a real camera may respond. In some cases there may not even be an error message at all, but instead a crash of the mock script
 
-- The UDP camera discovery protocol is not yet implemented at all
-
 - Some attributes do not have an internal default value yet. Issuing a "get" command can result in the mock crashing
-
-- 10G functionality is not yet implemented at all
 
 - Setting different values to the attributes has no effect

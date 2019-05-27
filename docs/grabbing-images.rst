@@ -6,6 +6,9 @@ Grabbing images
 Grabbing single frames using the img
 ====================================
 
+Using the data connection
+=========================
+
 it is important to note, that some cameras offer the possibility to transfer frames either over the "regular" ethernet
 port or the 10G ethernet connection. The following command however does not support the 10G connection and thus may
 be relatively slow, as it is only designed for testing purposes.
@@ -31,4 +34,5 @@ The three transfer formats and their respective pixel encoding size:
 - *P16*: 16 bit / 2 byte per pixel
 
 - *P8*: 8 bit / 1 byte per pixel
+
 

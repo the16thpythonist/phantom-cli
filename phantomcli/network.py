@@ -35,15 +35,6 @@ logger = logging.getLogger(__name__)
 socketserver.ThreadingTCPServer.allow_reuse_address = True
 
 
-class PhantomDiscoveryResponseServer(socketserver.UDPServer):
-
-    DEFAULT_IP = 'localhost'
-    DEFAULT_PORT = 10100
-
-    def __init__(self):
-
-        super(PhantomDiscoveryResponseServer, self).__init__()
-
 
 class PhantomSocket:
     """
@@ -68,7 +59,8 @@ class PhantomSocket:
     # 20.05.2019
     # The socket, which will send the discovery request will be a UDP socket bound to localhost and the port 10101
     # (This is not a specific port. It could be any other free port)
-    DISCOVERY_IP = 'localhost'
+    DISCOVERY_IP = '100.100.100.1'
+    DISCOVERY_X_IP = '172.16.1.1'
     DISCOVERY_PORT = 10101
     # This is the address, that has to be used to send the discovery request. It will have to be a broadcast to reach
     # all the phantom cameras present in the network. All phantom cameras listen on port 7380 for discovery requests.
@@ -813,7 +805,7 @@ class PhantomSocket:
     # -----------------
 
     @classmethod
-    def discover(cls):
+    def discover(cls, xnetwork: bool =False):
         """
         This method can be used to sent a discovery broadcast into the network to which all the phantom cameras will
         respond. It will return a list of dicts, where each dict contains the information from one of the cameras
@@ -829,11 +821,17 @@ class PhantomSocket:
 
         Added 20.05.2019
 
+        Changed 27.05.2019
+        Added additional argument boolean flag "xnetwork". If it is true, that means the camera is connected to the
+        10G interface and thus a different IP range has to be used
+
+        :param xnetwork:
+
         :return:
         """
         # This method will create a socket object, that is suitable for the discovery process. It will be a
         # socket for UDP, with broadcasting enabled and the correct timeout set.
-        discovery_socket = cls.get_discovery_socket()
+        discovery_socket = cls.get_discovery_socket(xnetwork)
 
         # This method will simply send the discovery message to all devices on the network to the correct
         # port at which the phantom cameras will be listening
@@ -956,7 +954,7 @@ class PhantomSocket:
         discovery_socket.sendto(cls.DISCOVERY_REQUEST, cls.DISCOVERY_BROADCAST_ADDRESS)
 
     @classmethod
-    def get_discovery_socket(cls) -> socket.socket:
+    def get_discovery_socket(cls, xnetwork: bool) -> socket.socket:
         """
         This method will create a new socket object and configure it so it can be used as the socket for the phantom
         camera discovery. This means making it a UDP socket, enabling broadcasting, setting the correct timeout and
@@ -966,6 +964,12 @@ class PhantomSocket:
 
         Added 20.05.2019
 
+        Changed 27.05.2019
+        Added additional argument boolean flag "xnetwork". If it is true, that means the camera is connected to the
+        10G interface and thus a different IP range has to be used
+
+        :param xnetwork:
+
         :return:
         """
         # The socket is configured to use the IP protocol (AF_INET) and the datagram/UDP on top of that (SOCK_DGRAM)
@@ -974,8 +978,14 @@ class PhantomSocket:
         # flag to true (1) first
         discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+        # 27.05.2019
+        # If the xnetwork flag has been set. The socket is connected using the 10G network, which has a different
+        # IP range and thus the socket has to be bound to different IP
         # We are then going to bind the socket to the IP and PORT specified as class variables
-        discovery_socket.bind((cls.DISCOVERY_IP, cls.DISCOVERY_PORT))
+        if xnetwork:
+            discovery_socket.bind((cls.DISCOVERY_IP, cls.DISCOVERY_PORT))
+        else:
+            discovery_socket.bind((cls.DISCOVERY_X_IP, cls.DISCOVERY_PORT))
         # We are setting a timout for the socket. Because after the broadcast has been sent, we use it to receive the
         # responses from the phantom cameras. But we cannot wait forever, so we will wait only this amount of seconds
         discovery_socket.settimeout(cls.DISCOVERY_TIMEOUT)

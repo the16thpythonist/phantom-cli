@@ -11,6 +11,7 @@ Welcome to phantomcli's documentation!
 
    setting-up
    accessing-attributes
+   discovery
    grabbing-images
    simulating-camera
 

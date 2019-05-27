@@ -134,3 +134,9 @@ one static image.
     discovery request 
 - Added an additional command line tool "ph-discover", which will sent a 
 discovery request into the network
+
+### 0.0.0.17 - 27.05.2019
+
+- Added 10G ethernet connection support for the ph-discover command, as 
+a different IP range is needed then.
+- Updated the documentation
