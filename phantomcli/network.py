@@ -1,29 +1,32 @@
-
 # standard library imports
 import socket
 import logging
 import subprocess
 import threading
 import socketserver
-import demjson
 import os
-import struct
-import binascii
+
+from typing import Callable
 
 from collections import defaultdict
 from uuid import getnode as get_mac
 # 20.05.2019
 # Starting to use typing
-from typing import Any, ByteString, Dict, List, Union, Tuple
+from typing import Any, ByteString, Dict, Tuple
 
 # third party libraries
 
 # package imports
 from phantomcli.phantom import PhantomCamera
+
 from phantomcli.image import PhantomImage
+
 from phantomcli.command import parse_parameters
 from phantomcli.command import ImgFormatsMap
+
 from phantomcli.data import PhantomDataTransferServer, PhantomXDataTransferServer, RawByteSender
+
+from phantomcli._util import dummy_callback
 
 
 # Setting the server
@@ -33,7 +36,6 @@ logger = logging.getLogger(__name__)
 # It is important to configure this, because if this isnt set it could be, that running a program, which uses this
 # module twice in a row, it can happen, that the socket address is not properly released and it wont work.
 socketserver.ThreadingTCPServer.allow_reuse_address = True
-
 
 
 class PhantomSocket:
@@ -72,6 +74,21 @@ class PhantomSocket:
     # This is the time we are going to wait for all discovery responses to arrive at our destination. After that we
     # stop listening and return the results. (In seconds)
     DISCOVERY_TIMEOUT = 10
+
+    # 10.06.2019
+    # These are the class variables for the different modes of operations of the camera
+    MODE_STANDARD = 'standard'
+    MODE_STANDARD_BINNED = 'standard-binned'
+    MODE_HIGH_SPEED = 'high-speed'
+    MODE_HIGH_SPEED_BINNED = 'high-speed-binned'
+    # This dict maps the strings, which a user can pass to the socket object to change the mode to the actual integer
+    # IDs, which have to be passed as arguments of the actual command string sent to the camera
+    MODE_IDS = {
+        MODE_STANDARD:          0,
+        MODE_STANDARD_BINNED:   0,
+        MODE_HIGH_SPEED:        0,
+        MODE_HIGH_SPEED_BINNED: 0,
+    }
 
     # 19.03.2019
     # This is a mapping, for which the value of the network_type is used as the input and according to the boolean
@@ -352,8 +369,8 @@ class PhantomSocket:
         """
         # 19.03.2019
         # Moved the creation of the command string to a separate method, because the command string is different,
-        # based on the value of the "network_type" attribute of this object. And that difference is none of this methods
-        # concern, this method only has to send the command, whatever that may be.
+        # based on the value of the "network_type" attribute of this object. And that difference is none of this
+        # methods concern, this method only has to send the command, whatever that may be.
         command_string = self.img_command()
         self.send(command_string)
         self.logger.debug('Sent img request for grabbing a picture')
@@ -368,12 +385,12 @@ class PhantomSocket:
         # The "img_format" attribute saves the string token name of the format, for the request to the camera the
         # number representation is needed though.
         img_format_number = ImgFormatsMap.get_number(self.img_format)
-        command_string = 'img {cine: -1, start:0, cnt:1, fmt:%s}' % img_format_number
+        command_string = 'img {cine:-1, start:0, cnt:1, fmt:%s}' % img_format_number
         return command_string
 
     def x_img_command(self):
         mac_address = self.get_hex_mac_address()
-        command_string = 'ximg {cine: -1, start:0, cnt:1, dest:%s}' % mac_address
+        command_string = 'ximg {cine:-1, start:0, cnt:1, dest:%s}' % mac_address
         return command_string
 
     def get_hex_mac_address(self):
@@ -494,6 +511,57 @@ class PhantomSocket:
         self.send(command_string)
         self.logger.debug('Sent start data request on port %s to phantom', port)
 
+    # CHANGE MODE OPERATION
+    # ---------------------
+
+    def set_mode(self, mode: str):
+        """
+        This method sets the mode of the camera to the mode ifentified by the given string. For setting a new
+        acquisition mode, the camera has to reboot, which means, that an issuing of this command will result in a
+        connection loss.
+        This method will raise a ValueError if the given string is not a valid mode identifier
+
+        CHANGELOG
+
+        Added 10.06.2019
+
+        :param mode:
+        :return:
+        """
+        self.check_mode(mode)
+        # The iload command will cause a camera reboot with the given configurations
+        self.iload(self.MODE_IDS[mode])
+
+    def check_mode(self, mode: str):
+        """
+        This method checks if the given string is a valid mode identifier and raises a ValueError if that is not the
+        case
+
+        CHANGELOG
+
+        Added 10.06.2019
+
+        :param mode:
+        :return:
+        """
+        if mode not in self.MODE_IDS.keys():
+            raise ValueError('The given string "%s" is not a valid mode identifier' % mode)
+
+    def iload(self, mode: int = 0):
+        """
+        Given the mode int ID, this method will issue the camera to reboot using the new mode configuration
+
+        CHANGELOG
+
+        Added 10.06.2019
+
+        :param mode:
+        :return:
+        """
+        command_string = 'iload {mode:%s}' % mode
+        self.send(command_string)
+        self.logger.debug('Sent iload command with mode "%s"', mode)
+
     # SET OPERATIONS ON PHANTOM
     # -------------------------
 
@@ -601,8 +669,8 @@ class PhantomSocket:
         :param structure_name:
         :return:
         """
-        # Creating the command string according to the syntax and then sending it to the camera. The encoding is handled
-        # by the "send" method
+        # Creating the command string according to the syntax and then sending it to the camera. The encoding is
+        # handled by the "send" method
         command_string = 'get {}'.format(structure_name)
         self.send(command_string)
         self.logger.debug('Sent get request for "%s" to the phantom', structure_name)
@@ -694,8 +762,13 @@ class PhantomSocket:
         Changed 23.02.2019
         In case there is a running data server associated with this object, it is being closed as well now
 
+        Changed 10.06.2019
+        Now the socket sends a "bye" to the server before it shuts down. This will tell the server to end the
+        connection and close the handler savely
+
         :return:
         """
+        self.send('bye')
         # 23.02.2019
         # In case we have started a data server to receive images, we obviously need to close it again as well
         if self.data_server is not None:
@@ -794,8 +867,8 @@ class PhantomSocket:
         :return: bool
         """
         # TODO: Maybe make it support windows as well
-        # I have actually tried using the "pythonping" package here, but it just didnt work. It would always hang itself
-        # when the destination was unreachable, the function call remained blocking and never issued a timeout.
+        # I have actually tried using the "pythonping" package here, but it just didnt work. It would always hang
+        # itself when the destination was unreachable, the function call remained blocking and never issued a timeout.
         command = 'ping -c 1 {}'.format(self.ip)
         response = subprocess.call(command, shell=True, stdout=subprocess.DEVNULL)
         self.logger.debug('Pinged %s and received response "%s"', self.ip, response)
@@ -805,7 +878,7 @@ class PhantomSocket:
     # -----------------
 
     @classmethod
-    def discover(cls, xnetwork: bool =False):
+    def discover(cls, xnetwork: bool = False):
         """
         This method can be used to sent a discovery broadcast into the network to which all the phantom cameras will
         respond. It will return a list of dicts, where each dict contains the information from one of the cameras
@@ -1039,6 +1112,11 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         Added 21.02.2019
 
+        Changed 10.06.2019
+        Added a call to the "self.server.callback" callable with the command name and the parameters received.
+        Also added an own "self.running" variable for every handler instance, so they can close themselves, when a
+        bye command is received.
+
         :return: void
         """
         self.server.logger.info(
@@ -1054,7 +1132,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         # The connection with the phantom camera is based on one ongoing socket connection. That is why we are using a
         # infinite while loop here
-        while self.server.running:
+        # 10.06.2019
+        # The handler needs its own running condition, as it can close itself, when a "bye" command is received
+        self.running = True
+        while self.server.running and self.running:
             data = self.request.recv(1024).strip()
             request = data.decode('utf-8')
             if request and request[0] == '' or len(request) == 0:
@@ -1064,6 +1145,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
             request_split = request.split(' ')
             command = request_split[0]
             data = request_split[1:]
+
+            # 10.06.2019
+            # Passing thee arguments along to the callback, specified in the server
+            self.server.callback(command, data)
 
             # Dynamically choosing the right sub handle method of this class based on the given command type and then
             # executing that method with the rest of the data passed to the function
@@ -1231,6 +1316,19 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         self.send_ok()
 
     def handle_bye(self, data):
+        """
+        When a "bye" is received, this tells the mock to close the server connection.
+
+        CHANGELOG
+
+        Added 10.06.2019
+        :param data:
+        :return:
+        """
+        # Ending the main loop
+        self.running = False
+
+    def handle_iload(self, data):
         self.send_ok()
 
     # BUSINESS LOGIC METHODS
@@ -1677,7 +1775,7 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
             ip=DEFAULT_IP,
             port=DEFAULT_PORT,
             interface=DEFAULT_INTERFACE,
-            dicovery_server_class: Any = PhantomMockDiscoveryServer
+            callback: Callable = dummy_callback
     ):
         """
         The constructor.
@@ -1694,6 +1792,11 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         Changed 10.05.2019
         Added the ip, port and interface parameters to make the network behaviour of the mock configurable
 
+        Changed 10.06.2019
+        Added the callback parameter to the constructor, which is a function with two parameters for the name and the
+        parameters of a request, received by the mock server. This can for example be used to expose these values
+        to a testing environment.
+
         :param class camera_class:
         """
         # Creating a new logger, whose name is a combination from the module name and the class name of this very class
@@ -1709,12 +1812,17 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
 
         # 18.03.2019
         # Saving the image policy to be used.
-        # The "grab_image" field will actually contain a function object. According to the string about the image policy
-        # given it will either contain the "PhantomCamera.grab_sample" or the the "PhantomCamera.grab_random" function.
-        # To actually acquire an image you have to call "self.grab_image(actual_phantom_camera_instance)"
+        # The "grab_image" field will actually contain a function object. According to the string about the image
+        # policy given it will either contain the "PhantomCamera.grab_sample" or the the "PhantomCamera.grab_random"
+        # function. To actually acquire an image you have to call "self.grab_image(actual_phantom_camera_instance)"
         self.image_policy = image_policy
         self.grab_image = self.IMAGE_POLICIES[image_policy]
         self.logger.debug('Mock server image policy: %s (%s)', image_policy, self.grab_image.__name__)
+
+        # 10.06.2019
+        # This callback is a function with 2 parameters for the name and the parameters of a every request the mock
+        # handler receives.
+        self.callback = callback
 
         # The handler and the camera class, on which the mock behaviour is based on can be passed as arguments to ensure
         # loose coupling
@@ -1789,5 +1897,3 @@ class PhantomMockServer(socketserver.ThreadingTCPServer):
         # 20.05.2019
         # The discovery server also needs to be stopped
         self.discovery_server.stop()
-
-

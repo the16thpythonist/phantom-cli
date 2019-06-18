@@ -2,16 +2,13 @@
 
 # standard library imports
 import logging
-import time
-
-from collections import defaultdict
 
 # third party imports
 import click
 
 # package imports
 from phantomcli.network import PhantomSocket
-from phantomcli.scripts.util import logging_format, logging_config, formats
+from phantomcli.scripts.util import logging_config, formats
 from phantomcli.scripts.util import format_help, log_help
 
 

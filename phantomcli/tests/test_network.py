@@ -1,61 +1,47 @@
 # Standard library import
-from unittest import TestCase
 
 # Package import
 from phantomcli.network import PhantomSocket
 from phantomcli.network import PhantomMockServer
 
-
-class PhantomSocketTestCase(TestCase):
-
-    GOOGLE_IP = '8.8.8.8'
-    LOCALHOST_IP = '127.0.0.1'
+from phantomcli._util import MockTestCase
 
 
-class TestPhantomSocketBasic(TestCase):
+class TestPhantomSocket(MockTestCase):
 
-    GOOGLE_IP = '8.8.8.8'
-    LOCALHOST_IP = '127.0.0.1'
+    MOCK_SERVER_CLASS = PhantomMockServer
+    PHANTOM_SOCKET_CLASS = PhantomSocket
 
-    @classmethod
-    def setUpClass(cls):
-        # Starting a mock server
-        cls.mock_server = PhantomMockServer()
-        cls.mock_server.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.mock_server.stop()
-
-    def test_true_is_true(self):
+    def test_mock_test_case_working(self):
+        phantom_socket = self.get_phantom_socket()
+        phantom_socket.connect()
         self.assertTrue(True)
+        phantom_socket.disconnect()
 
     def test_ping_working_to_localhost(self):
-        # Setting up a phantom socket, that points to the localhost and executing a ping. This ensures that the ping
-        # command is generally working, because localhost should be addressable no matter what the network config
-        phantom_socket = PhantomSocket(self.LOCALHOST_IP)
+        phantom_socket = self.get_phantom_socket()
         is_pingable = phantom_socket.ping()
         self.assertTrue(is_pingable)
 
-    def test_ping_working_to_google_network_connection(self):
-        # Setting to google server (because we can assume, that it is always up) This will test the connection to the
-        # internet
-        phantom_socket = PhantomSocket(self.GOOGLE_IP)
-        is_pingable = phantom_socket.ping()
-        self.assertTrue(is_pingable)
+    def test_change_acquisition_mode(self):
+        phantom_socket = self.get_phantom_socket()
+        phantom_socket.connect()
 
-    def test_connect_to_mock_server(self):
-        phantom_socket = PhantomSocket(self.LOCALHOST_IP)
-        try:
-            phantom_socket.connect()
-            self.assertTrue(True)
-            phantom_socket.disconnect()
-        except ConnectionError:
-            self.assertEqual('', 'PhantomSocket could not connect to the mock server!')
+        phantom_socket.set_mode(PhantomSocket.MODE_STANDARD)
+        self.wait_request()
+        request = self.get_requests()[0]
+        self.assertEqual(request[0], 'iload')
 
-    def test_exception_when_attempting_to_connect_without_socket(self):
-        # Attempting to connect to google, because google most likely doesnt have a listening socket on port 7115,
-        # which should cause the exception
-        phantom_socket = PhantomSocket(self.GOOGLE_IP)
-        self.assertRaises(ConnectionError, phantom_socket.connect)
         phantom_socket.disconnect()
+
+    def test_startdata_command_string(self):
+        phantom_socket: PhantomSocket = self.get_phantom_socket()
+        phantom_socket.connect()
+
+        phantom_socket.start_data_server()
+        phantom_socket.startdata()
+        phantom_socket.img()
+        self.wait_request()
+        request = self.get_requests()[0]
+        print(request)
+        self.assertTrue(False)

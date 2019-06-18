@@ -8,8 +8,6 @@ import imageio
 import numpy as np
 
 # Package import
-from phantomcli.network import PhantomSocket
-from phantomcli.network import PhantomMockServer
 from phantomcli.image import PhantomImage
 
 

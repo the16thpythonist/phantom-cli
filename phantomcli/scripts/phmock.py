@@ -4,8 +4,6 @@
 import logging
 import time
 
-from collections import defaultdict
-
 # third party imports
 import click
 

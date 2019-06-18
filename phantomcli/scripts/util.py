@@ -2,6 +2,11 @@
 import logging
 from collections import defaultdict
 
+# local imports
+
+from phantomcli.network import PhantomSocket
+
+
 # ##############
 # LOGGING CONFIG
 # ##############
@@ -38,6 +43,23 @@ _formats = {
 }
 formats = defaultdict(lambda: 'P16', **_formats)
 
+##############################
+# HANDLING ACQUISITION MODES #
+##############################
+
+# This is a mapping from the strings, the user can pass as identifiers for acquisition modes to the actual constants
+# needed to be passed to the according method of the phantom socket object.
+_modes = {
+    'S':                    PhantomSocket.MODE_STANDARD,
+    'standard':             PhantomSocket.MODE_STANDARD,
+    'SB':                   PhantomSocket.MODE_STANDARD_BINNED,
+    'standard-binned':      PhantomSocket.MODE_STANDARD_BINNED,
+    'HS':                   PhantomSocket.MODE_HIGH_SPEED,
+    'high-speed':           PhantomSocket.MODE_HIGH_SPEED,
+    'HSB':                  PhantomSocket.MODE_HIGH_SPEED_BINNED,
+    'high-speed-binned':    PhantomSocket.MODE_HIGH_SPEED_BINNED
+}
+
 # ##################
 # COMMAND HELP TEXTS
 # ##################
@@ -54,4 +76,3 @@ log_help = "The level of logging to be displayed in the console output. The opti
 
 xnetwork_help = "Setting this flag will enable the transmission using the 10G interface. Make sure, that you are " \
                 "indeed connected using the 10G ethernet interface before setting this flag."
-

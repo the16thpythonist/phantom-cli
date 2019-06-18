@@ -1,6 +1,5 @@
 # Standard library imports
 import struct
-import logging
 
 from typing import ByteString, Tuple
 
@@ -278,7 +277,6 @@ class PhantomImage:
             'P8R':          cls.from_p8,
             'P10':          cls.from_p10
         }
-        inverse_resolution = (resolution[1], resolution[0])
         return _methods[fmt](raw_bytes, resolution)
 
     @classmethod

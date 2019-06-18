@@ -2,7 +2,6 @@
 import os
 
 # third party imports
-import numpy as np
 
 # package imports
 from phantomcli.image import PhantomImage
@@ -169,13 +168,27 @@ class PhantomCamera:
         'defc.shoff':               'Shutter off',
         'defc.ramp':                'Frame rate ramping specification string',
         'defc.bcount':              'Number of frames per burst',
+        'defc.ptframes':            'The amount of frames to record after a trigger command',
     }
 
     CAPTURE_PROCESS_DEFAULT = {
         'defc.res':                 '1500 x 1000',
         'defc.exp':                 10000000,
         'defc.rate':                1000000,
-        'defc.edrecp':              100
+        'defc.edrecp':              100,
+        'defc.ptframes':            100
+    }
+
+    # ########################
+    # CINE STATE OF THE CAMERA
+    # ########################
+
+    CINE_DESCRIPTIONS = {
+        'c1.sate':                  'The state of the cine',
+    }
+
+    CINE_DEFAULT = {
+        'c1.state':                 'STR'
     }
 
     # ##############################
@@ -188,7 +201,8 @@ class PhantomCamera:
         **IDENTIFICATION_INFO_DESCRIPTIONS,
         **STATUS_INFO_DESCRIPTIONS,
         **ETHERNET_DESCRIPTIONS,
-        **CAPTURE_PROCESS_DESCRIPTIONS
+        **CAPTURE_PROCESS_DESCRIPTIONS,
+        **CINE_DESCRIPTIONS
     }
 
     DEFAULTS = {
@@ -197,7 +211,8 @@ class PhantomCamera:
         **CAPABILITIES_INFO_DEFAULT,
         **CAPTURE_PROCESS_DEFAULT,
         **STATUS_INFO_DEFAULT,
-        **ETHERNET_DEFAULT
+        **ETHERNET_DEFAULT,
+        **CINE_DEFAULT
     }
 
     # ##################

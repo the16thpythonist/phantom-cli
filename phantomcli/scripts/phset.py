@@ -2,13 +2,9 @@
 
 # standard library imports
 import logging
-import time
-
-from collections import defaultdict
 
 # third party imports
 import click
-import texttable
 
 # package imports
 from phantomcli.network import PhantomSocket

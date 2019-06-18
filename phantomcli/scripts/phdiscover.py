@@ -8,8 +8,8 @@ import click
 
 # package imports
 from phantomcli.network import PhantomSocket
-from phantomcli.scripts.util import logging_config, logging_format, formats
-from phantomcli.scripts.util import log_help, format_help, xnetwork_help
+from phantomcli.scripts.util import logging_config, logging_format
+from phantomcli.scripts.util import log_help
 
 
 @click.command('phdiscover')
