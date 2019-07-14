@@ -140,3 +140,9 @@ discovery request into the network
 - Added 10G ethernet connection support for the ph-discover command, as 
 a different IP range is needed then.
 - Updated the documentation
+
+### 0.1.0 - 14.07.2019
+
+- Added the "ph-mode" command, which can be used to switch the mode of the phantom camera between 
+"standard - high speed" and "normal - binned"
+- Added the "P12L" transfer format support as a possibility for both the main socket object as well as the mock

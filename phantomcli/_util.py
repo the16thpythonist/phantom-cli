@@ -1,7 +1,7 @@
 # standard library
 import time
 
-from typing import Iterable, List, Dict, Tuple
+from typing import Iterable, List, Dict, Tuple, Any
 
 from unittest import TestCase
 
@@ -21,6 +21,25 @@ def dummy_callback(name: str, parameters: Iterable):
     """
     pass
 
+
+def value_or_default(dictionary: dict, key: str, default: Any):
+    """
+    Either returns the item of the "dictionary" corresponding to the given "key" or the given default value, if no
+    such key exists within the dict.
+
+    CHANGELOG
+
+    Added 14.07.2019
+
+    :param dictionary:
+    :param key:
+    :param default:
+    :return:
+    """
+    if key in dictionary.keys():
+        return dictionary[key]
+    else:
+        return default
 
 # ###########
 # FOR TESTING

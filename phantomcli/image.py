@@ -19,9 +19,30 @@ class PhantomImage:
 
     Changed 20.03.2019
     Checking the edge case of what happens when the passed array is one dimensional.
+
+    Changed 12.07.2019
+    Added the class variable SUPPORTED_FORMATS, which contains a list of strings, where each string is an identfier
+    for one of the transfer formats, which are supported.
     """
 
+    # 12.07.2019
+    SUPPORTED_FORMATS = [
+        'P16',
+        'P16R',
+        'P8',
+        'P8R',
+        'P10',
+        'P12L'
+    ]
+
     def __init__(self, array):
+        """
+        The constructor
+
+        Added 23.02.2019
+
+        :param array:
+        """
         self.array = array
 
         # 20.03.2019
@@ -36,6 +57,20 @@ class PhantomImage:
     # ###############################
 
     def to_transfer_format(self, fmt):
+        """
+        Given either the string or the integer identifier for a transfer format, this method will return the according
+        byte string for that format from the image.
+
+        CHANGELOG
+
+        Added 23.02.2019
+
+        Changed 12.07.2019
+        Added the P12L format.
+
+        :param fmt:
+        :return:
+        """
         _methods = {
             272:    self.p16,
             -272:   self.p16,
@@ -46,7 +81,8 @@ class PhantomImage:
             'P16R': self.p16,
             'P8':   self.p8,
             'P8R':  self.p8,
-            'P10':  self.p10
+            'P10':  self.p10,
+            'P12L': self.p12l
         }
         return _methods[fmt]()
 
@@ -129,6 +165,37 @@ class PhantomImage:
                     byte_buffer.append(bytes_string)
                     temp = 0
                     index = 0
+
+        return b''.join(byte_buffer)
+
+    def p12l(self):
+        """
+        Returns the byte string, which is the image converted into P12L transfer format
+
+        CHANGELOG
+
+        Added 12.07.2019
+
+        :return:
+        """
+        # The P12L format is a 12 Bit transfer format. It is the most practical one, since the bit depth of most of the
+        # phantom cameras is 12 Bit. So the transferred data neither looses accuracy (such as with the 10 Bit format)
+        # Nor is redundant bits being transmitted (Such as with the 16 Bit format).
+        # Since two pixels have 24 Bit, they can be converted into 3 bytes (8x3=24) directly
+
+        byte_buffer = []
+        with np.nditer(self.array, op_flags=['readwrite'], order='C') as it:
+            while not it.finished:
+                temp = int(it[0])
+                temp <<= 12
+                it.iternext()
+                temp |= int(it[0])
+                it.iternext()
+
+                # At this moment two pixels are saved in the temp variable (at max 24 bit integer) those can be
+                # directly converted into 2 bytes.
+                byte_string = temp.to_bytes(3, 'big')
+                byte_buffer.append(byte_string)
 
         return b''.join(byte_buffer)
 
@@ -255,6 +322,39 @@ class PhantomImage:
         return cls(array)
 
     @classmethod
+    def from_p12l(cls, raw_bytes, resolution):
+        """
+        Returns a new PhantomImage object, which has been created from the given raw bytestring of the image data in
+        P12L transfer format.
+
+        CHANGELOG
+
+        Added 12.07.2019
+
+        :param raw_bytes:
+        :param resolution:
+        :return:
+        """
+        # This creates a mask with 12 "1"s
+        mask = (1 << 12) - 1
+        pixels = []
+        index = 0
+        while index < len(raw_bytes):
+            _bytes = raw_bytes[index:index+3]
+            _bytes_value = int.from_bytes(_bytes, 'big')
+            _pixels = [
+                ((_bytes_value >> 12) & mask),
+                (_bytes_value & mask)
+            ]
+            pixels += _pixels
+            index += 3
+
+        array = np.array(pixels)
+        array = array.reshape(resolution)
+
+        return cls(array)
+
+    @classmethod
     def from_transfer_format(cls, fmt, raw_bytes, resolution):
         """
         Given the raw bytes string received from the socket and the resolution of the image, this method will create
@@ -264,6 +364,9 @@ class PhantomImage:
         CHANGELOG
 
         Added 28.02.2019
+
+        Changed 12.07.2019
+        Added the 'P12L' format
 
         :param fmt:
         :param raw_bytes:
@@ -275,7 +378,8 @@ class PhantomImage:
             'P16R':         cls.from_p16,
             'P8':           cls.from_p8,
             'P8R':          cls.from_p8,
-            'P10':          cls.from_p10
+            'P10':          cls.from_p10,
+            'P12L':         cls.from_p12l()
         }
         return _methods[fmt](raw_bytes, resolution)
 

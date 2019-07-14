@@ -54,8 +54,6 @@ class TestPhantomImage(TestCase):
         # still is the same image
         phantom_image = PhantomImage.from_jpeg(self.IMAGE_PATH)
         phantom_image = PhantomImage.from_p8(phantom_image.p8(), phantom_image.resolution)
-        print(phantom_image.array)
-        print(expected_array)
         self.assertTrue(np.alltrue(expected_array == phantom_image.array))
 
     def test_sample_image_conversion_between_p10_and_jpeg(self):
@@ -65,4 +63,14 @@ class TestPhantomImage(TestCase):
         # still is the same image
         phantom_image = PhantomImage.from_jpeg(self.IMAGE_PATH)
         phantom_image = PhantomImage.from_p10(phantom_image.p10(), phantom_image.resolution)
+        self.assertTrue(np.alltrue(expected_array == phantom_image.array))
+
+    # 12.07.2019
+    def test_sample_image_conversion_between_p12l_and_jpeg(self):
+        expected_array = imageio.imread(self.IMAGE_PATH, pilmode='L')
+
+        # First we create a phantom image from the file path, then convert it to p16 convert it back and see if it
+        # still is the same image
+        phantom_image = PhantomImage.from_jpeg(self.IMAGE_PATH)
+        phantom_image = PhantomImage.from_p12l(phantom_image.p12l(), phantom_image.resolution)
         self.assertTrue(np.alltrue(expected_array == phantom_image.array))

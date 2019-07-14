@@ -26,7 +26,7 @@ from phantomcli.command import ImgFormatsMap
 
 from phantomcli.data import PhantomDataTransferServer, PhantomXDataTransferServer, RawByteSender
 
-from phantomcli._util import dummy_callback
+from phantomcli._util import dummy_callback, value_or_default
 
 
 # Setting the server
@@ -85,9 +85,9 @@ class PhantomSocket:
     # IDs, which have to be passed as arguments of the actual command string sent to the camera
     MODE_IDS = {
         MODE_STANDARD:          0,
-        MODE_STANDARD_BINNED:   0,
-        MODE_HIGH_SPEED:        0,
-        MODE_HIGH_SPEED_BINNED: 0,
+        MODE_STANDARD_BINNED:   2,
+        MODE_HIGH_SPEED:        5,
+        MODE_HIGH_SPEED_BINNED: 7,
     }
 
     # 19.03.2019
@@ -104,12 +104,15 @@ class PhantomSocket:
     # IMAGE TRANSFER FORMATS
     # This dict assigns the byte size to each possible image transfer format. The byte size is an integer of how many
     # bytes each pixel is made up of in the corresponding raw data stream.
+    # 14.07.2019
+    # Added the P12L format, which is a 12 Bit format
     IMG_FORMAT_BYTES = {
         'P8':               1,
         'P8R':              1,
         'P16':              2,
         'P16R':             2,
-        'P10':              1.25
+        'P10':              1.25,
+        'P12L':             1.5
     }
 
     def __init__(
@@ -389,8 +392,25 @@ class PhantomSocket:
         return command_string
 
     def x_img_command(self):
+        """
+        Returns the command string for requesting a
+
+        CHANGELOG
+
+        Added 23.02.2019
+
+        Changed 14.07.2019
+        Instead of using string formatting with the "%" operator, the .format method is being used now
+        Added the fmt: parameter to the command string, which will contain the string identifier for the transfer
+        format the images are to be encoded in.
+
+        :return:
+        """
         mac_address = self.get_hex_mac_address()
-        command_string = 'ximg {cine:-1, start:0, cnt:1, dest:%s}' % mac_address
+        command_string = 'ximg {cine:-1, start:0, cnt:1, dest:{mac}, fmt:{format}}'.format(
+            mac=mac_address,
+            format=self.img_format
+        )
         return command_string
 
     def get_hex_mac_address(self):
@@ -1173,6 +1193,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         Using the function "send_images_x" instead of doing all the network operations in this method.
         Also added support for actually sending as many images as specified in the image request
 
+        Changed 14.07.2019
+        The parameter "fmt" is not being extracted from the command parameters (with a default on P10). This format
+        parameter is passed to the send method, which uses the according encoding.
+
         :param data:
         :return:
         """
@@ -1184,6 +1208,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         parameters = parse_parameters(data_string)
         destination = parameters['dest']
         count = parameters['cnt']
+        # 14.07.2019
+        # 'value_or_default' either returns the value of the given dict to the given key, or if the key does not exist
+        # the given default value. This is important because "fmt" is not a required field for the ximg command.
+        fmt = value_or_default(parameters, 'fmt', 'P10')
 
         phantom_image = self.server.grab_image(self.server.camera)
         self.server.logger.debug('created phantom image with resolution %s', phantom_image.resolution)
@@ -1195,7 +1223,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         # 10.05.2019
         # Sending as many images as specified by the command request
-        self.send_images_x(phantom_image, destination, count)
+        # 14.07.2019
+        # The send_images_x method now also requires the string parameter "fmt" for the transfer format into which the
+        # image is supposed to be encoded in.
+        self.send_images_x(phantom_image, destination, count, fmt)
 
         self.server.logger.debug('sent raw data')
 
@@ -1334,7 +1365,7 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
     # BUSINESS LOGIC METHODS
     # ----------------------
 
-    def send_images_x(self, phantom_image, destination_mac, count):
+    def send_images_x(self, phantom_image: PhantomImage, destination_mac: str, count: int, fmt: str):
         """
         Sends as many images as specified by "count" over the ethernet interface to the destination MAC address
 
@@ -1342,15 +1373,20 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
 
         Added 10.05.2019
 
+        Changed 14.07.2019
+        Added the "fmt" parameter which will be for the transfer format into which the image is to be encoded.
+        The two available options are P10 and P12L
+
         :param phantom_image:
         :param destination_mac:
         :param count:
+        :param fmt:
         :return:
         """
         for i in range(count):
-            self.send_image_x(phantom_image, destination_mac)
+            self.send_image_x(phantom_image, destination_mac, fmt)
 
-    def send_image_x(self, phantom_image, destination_mac):
+    def send_image_x(self, phantom_image: PhantomImage, destination_mac: str, fmt: str):
         """
         Sends the given phantom image over the 10G connection using raw ethernet frames to the machine specified by
         "destination_mac"
@@ -1358,6 +1394,10 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         CHANGELOG
 
         Added 10.05.2019
+
+        Changed 14.07.2019
+        Added the "fmt" parameter which will be for the transfer format into which the image is to be encoded.
+        The two available options are P10 and P12L
 
         :param phantom_image:
         :param destination_mac:
@@ -1370,7 +1410,11 @@ class PhantomMockControlInterface(socketserver.BaseRequestHandler):
         # server object. It is defined as a constant, because it is not configurable. All phantom cameras use the same
         protocol = self.server.ETHERNET_PROTOCOL
 
-        sender = RawByteSender(phantom_image.p10(), interface, destination_mac, protocol)
+        # 14.07.2019
+        # Previously the format was just on P10 per default. So the byte string was created by "phantom_image.p10()".
+        # But now there is the possibility to pass in what kind of transfer format was requested
+        byte_string = phantom_image.to_transfer_format(fmt)
+        sender = RawByteSender(byte_string, interface, destination_mac, protocol)
         sender.send()
         self.server.logger.debug("Sending image as raw ethernet frames")
 
