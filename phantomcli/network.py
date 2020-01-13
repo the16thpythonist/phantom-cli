@@ -357,7 +357,7 @@ class PhantomSocket:
 
         return byte_count
 
-    def send_img_request(self):
+    def send_img_request(self, count = 1):
         """
         This method assembles the command needed to request a image from the camera and sends it off
 
@@ -368,30 +368,33 @@ class PhantomSocket:
         Changed 28.02.2019
         Using the actual image format specified in the "img_format" attribute
 
+        Changed 13.01.2020
+        Possibility to grab more than one image.
+
         :return:
         """
         # 19.03.2019
         # Moved the creation of the command string to a separate method, because the command string is different,
         # based on the value of the "network_type" attribute of this object. And that difference is none of this
         # methods concern, this method only has to send the command, whatever that may be.
-        command_string = self.img_command()
+        command_string = self.img_command(count)
         self.send(command_string)
         self.logger.debug('Sent img request for grabbing a picture')
 
-    def img_command(self):
+    def img_command(self, count):
         method_name = "%s_img_command" % self.network_type
         method = getattr(self, method_name)
-        return method()
+        return method(count)
 
-    def e_img_command(self):
+    def e_img_command(self, count):
         # 28.02.2019
         # The "img_format" attribute saves the string token name of the format, for the request to the camera the
         # number representation is needed though.
         img_format_number = ImgFormatsMap.get_number(self.img_format)
-        command_string = 'img {cine:-1, start:0, cnt:1, fmt:%s}' % img_format_number
+        command_string = 'img {cine:-1, start:0, cnt:%s, fmt:%s}' % (count, img_format_number)
         return command_string
 
-    def x_img_command(self):
+    def x_img_command(self, count):
         """
         Returns the command string for requesting a
 
@@ -404,13 +407,17 @@ class PhantomSocket:
         Added the fmt: parameter to the command string, which will contain the string identifier for the transfer
         format the images are to be encoded in.
 
+        Changed 13.01.2020
+        Possibility to grab more than one image.
+
         :return:
         """
         mac_address = self.get_hex_mac_address()
-        command_string = 'ximg {cine:-1, start:0, cnt:1, dest:{mac}, fmt:{format}}'.format(
+        command_string = 'ximg {cine:-1, start:0, cnt' + ':{count_}, dest:{mac}, fmt:{format}'.format(
+            count_=count,
             mac=mac_address,
             format=self.img_format
-        )
+        ) + '}'
         return command_string
 
     def get_hex_mac_address(self):
